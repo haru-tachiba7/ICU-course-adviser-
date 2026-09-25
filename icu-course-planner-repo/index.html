@@ -164,6 +164,17 @@
     border-left: 2px solid var(--border);
     padding-left: 10px;
   }
+  .cap-rules {
+    margin-top: 16px;
+    font-size: 12px;
+  }
+  .cap-rules .rule {
+    padding: 7px 0;
+    border-top: 1px solid var(--border);
+    color: var(--ink-muted);
+  }
+  .cap-rules .rule.warn { color: var(--rust); }
+  .cap-rules .rule b { color: var(--ink); font-weight: 500; }
 
   /* ---- Course browser ---- */
   .browser h2 {
@@ -361,8 +372,9 @@
         <span class="value" id="totalValue"></span>
       </div>
       <div class="ledger-note">
-        ゴールドの濃い部分は「履修済」、薄い部分は「計画中(履修中・確定・予定など)」の単位。必要単位の数字はクリックすると変更できます(ストリームや配属によって変わる場合はここで調整してください)。区分ごとの上限ルールはまだ未確定のため、ここでは反映していません。
+        ゴールドの濃い部分は「履修済」、薄い部分は「計画中(履修中・確定・予定など)」の単位。必要単位の数字はクリックすると変更できます(ストリームや配属によって変わる場合はここで調整してください)。
       </div>
+      <div class="cap-rules" id="capRules"></div>
     </div>
 
     <div class="main">
@@ -424,6 +436,7 @@
 </div>
 
 <script src="data.js"></script>
+<script src="cap_rules.js"></script>
 <script>
 const STORAGE_KEY = 'icu_planner_enrollments_v1';
 const OVERRIDE_KEY = 'icu_planner_category_overrides_v1';
@@ -476,6 +489,24 @@ function renderCategoryFilter() {
   sel.appendChild(opt2);
 }
 
+function renderCapRules(earned, planned) {
+  const el = document.getElementById('capRules');
+  if (typeof CAP_RULES === 'undefined' || !el) return;
+  let html = '';
+  CAP_RULES.forEach(rule => {
+    if (rule.type === 'minimum_within') {
+      const iscCredits = enrollments
+        .filter(e => e.category_id === rule.category_id && e.course_no.startsWith('ISC'))
+        .reduce((sum, e) => sum + (Number(e.credit) || 0), 0);
+      const short = iscCredits < rule.min_credits;
+      html += `<div class="rule${short ? ' warn' : ''}">${rule.description}<br><b>${iscCredits}</b> / ${rule.min_credits} 単位(ISC科目分)</div>`;
+    } else if (rule.type === 'excess_cap') {
+      html += `<div class="rule">${rule.description}</div>`;
+    }
+  });
+  el.innerHTML = html;
+}
+
 function renderLedger() {
   const earned = {}, planned = {};
   CATEGORIES.forEach(c => { earned[c.id] = 0; planned[c.id] = 0; });
@@ -514,6 +545,7 @@ function renderLedger() {
     rows.appendChild(row);
   });
   document.getElementById('totalValue').innerHTML = `<b>${totalDone}</b> / ${totalReq} 単位取得済`;
+  renderCapRules(earned, planned);
 
   rows.querySelectorAll('.req-edit').forEach(el => {
     el.addEventListener('click', () => {

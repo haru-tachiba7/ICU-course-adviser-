@@ -1,0 +1,2 @@
+// 自動生成ファイル。scripts/parse_search_results.py 等で更新されることがあります。
+const CAP_RULES = [{"id": "ge_excess_to_elective", "category_id": "ge", "type": "excess_cap", "max_credits": 9, "description": "一般教育科目の必修(18単位)を超えた分は、最大9単位まで選択科目として計上できる"}, {"id": "hpe_excess_to_elective", "category_id": "hpe", "type": "excess_cap", "max_credits": 2, "description": "保健体育科目の必修(2単位)を超えた分(必修以外の講義・実技)は、最大2単位まで選択科目として計上できる"}, {"id": "foundation_min_from_major", "category_id": "foundation", "type": "minimum_within", "min_credits": 6, "description": "基礎科目18単位のうち、選択したメジャー(情報科学)の基礎科目から最低6単位を含める必要がある"}];

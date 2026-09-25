@@ -24,9 +24,7 @@ from collections import defaultdict
 
 from bs4 import BeautifulSoup
 
-# 科目番号の接頭辞から、卒業要件区分を自動判定するテーブル。
-# ここに載っていない接頭辞(専攻科目・基礎科目・選択科目になりうるもの)は
-# 「未分類」のままとし、推測で埋めない。
+# 科目番号の接頭辞から、機械的に判定できる卒業要件区分(語学・一般教育・保健体育・卒業研究)。
 CATEGORY_PREFIX_MAP = {
     "ELA": "英語(ELA)",
     "JLP": "日本語(JLP)",
@@ -38,6 +36,32 @@ CATEGORY_PREFIX_MAP = {
     "HPE": "保健体育",
     "STH": "卒業研究",
 }
+
+# メジャーとして選択している科目番号の接頭辞。
+MAJOR_PREFIX = "ISC"
+
+
+def hundred_level(course_no: str):
+    """科目番号の百の位を返す(例: ISC103 -> 1, EDU201 -> 2)。数字がなければNone。"""
+    m = re.search(r"\d+", course_no)
+    if not m:
+        return None
+    return int(m.group()[0])
+
+
+def classify_category(course_no: str, prefix: str):
+    """CATEGORY_PREFIX_MAP に無い科目に、卒業要件上の「専門科目」ルールを適用する。
+    基礎科目 = 100番台、専攻科目 = 200番台以上(ただし選択メジャーの科目のみ)、
+    それ以外(他メジャーの200番台以上)は選択科目。
+    """
+    if prefix in CATEGORY_PREFIX_MAP:
+        return CATEGORY_PREFIX_MAP[prefix]
+    lvl = hundred_level(course_no)
+    if lvl is None:
+        return None
+    if prefix == MAJOR_PREFIX:
+        return "基礎科目" if lvl == 1 else "専攻科目"
+    return "基礎科目" if lvl == 1 else "選択科目"
 
 # 卒業要件(必要単位)。ELA/JLPの必要単位は個人のストリームによって変わるため、
 # アプリ側で後から編集できるようになっている(ここではデフォルト値のみ)。
@@ -86,8 +110,8 @@ def parse_html(path: Path):
                 "course_no": cno,
                 "title_ja": title,
                 "credit": credit,
-                "category": CATEGORY_PREFIX_MAP.get(prefix),
-                "isc_relevance": None,
+                "category": classify_category(cno, prefix),
+                "isc_relevance": "高" if prefix == MAJOR_PREFIX else None,
                 "interest_level": None,
                 "offerings": [],
             }
