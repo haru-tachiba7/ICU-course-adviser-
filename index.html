@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>履修台帳 — Information Science</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EFEAE0;
+    --panel: #E4DDCE;
+    --panel-2: #DAD2BE;
+    --ink: #1E2A33;
+    --ink-muted: #5C6B73;
+    --gold: #8C6A1E;
+    --rust: #9C4530;
+    --border: #C9BFA9;
+    --serif: 'Lora', Georgia, 'Noto Serif JP', serif;
+    --sans: 'Inter', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    --mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10191F;
+      --panel: #16222A;
+      --panel-2: #1C2A33;
+      --ink: #EDE6D6;
+      --ink-muted: #8A97A0;
+      --gold: #C9A227;
+      --rust: #C1614A;
+      --border: #2A3944;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10191F;
+    --panel: #16222A;
+    --panel-2: #1C2A33;
+    --ink: #EDE6D6;
+    --ink-muted: #8A97A0;
+    --gold: #C9A227;
+    --rust: #C1614A;
+    --border: #2A3944;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  a { color: inherit; }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  header.top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 16px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px;
+    margin-bottom: 32px;
+  }
+  header.top h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 28px;
+    margin: 0 0 6px;
+  }
+  header.top .sub {
+    color: var(--ink-muted);
+    font-size: 13.5px;
+  }
+  .major-select {
+    font-family: var(--sans);
+    font-size: 13.5px;
+    color: var(--ink-muted);
+  }
+  .major-select select {
+    font-family: var(--sans);
+    font-size: 14px;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 6px 10px;
+    margin-left: 8px;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 32px;
+  }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  /* ---- Ledger (category progress) ---- */
+  .ledger h2 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 15px;
+    margin: 0 0 14px;
+    color: var(--ink-muted);
+    letter-spacing: 0.02em;
+  }
+  .cat-row {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .cat-row:first-of-type { border-top: 1px solid var(--border); }
+  .cat-name {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    margin-bottom: 7px;
+  }
+  .cat-name .n { font-weight: 500; }
+  .cat-name .nums { font-family: var(--mono); font-size: 12.5px; color: var(--ink-muted); }
+  .cat-name .nums b { color: var(--ink); font-weight: 500; }
+  .req-edit {
+    cursor: pointer;
+    border-bottom: 1px dotted var(--ink-muted);
+  }
+  .req-edit:hover { color: var(--gold); border-color: var(--gold); }
+  .bar-track {
+    position: relative;
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: 0;
+    overflow: hidden;
+  }
+  .bar-earned { position: absolute; left: 0; top: 0; height: 100%; background: var(--gold); }
+  .bar-planned { position: absolute; top: 0; height: 100%; background: var(--gold); opacity: 0.35; }
+  .cat-row.over .bar-earned { background: var(--rust); }
+
+  .ledger-total {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 2px solid var(--ink);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .ledger-total .label { font-family: var(--serif); font-size: 15px; }
+  .ledger-total .value { font-family: var(--mono); font-size: 15px; }
+  .ledger-total .value b { font-size: 19px; }
+
+  .ledger-note {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--ink-muted);
+    border-left: 2px solid var(--border);
+    padding-left: 10px;
+  }
+  .cap-rules {
+    margin-top: 16px;
+    font-size: 12px;
+  }
+  .cap-rules .rule {
+    padding: 7px 0;
+    border-top: 1px solid var(--border);
+    color: var(--ink-muted);
+  }
+  .cap-rules .rule.warn { color: var(--rust); }
+  .cap-rules .rule b { color: var(--ink); font-weight: 500; }
+
+  /* ---- Course browser ---- */
+  .browser h2 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 18px;
+    margin: 0 0 14px;
+  }
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .controls input, .controls select {
+    font-family: var(--sans);
+    font-size: 13.5px;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 7px 10px;
+  }
+  .controls input[type="search"] { flex: 1; min-width: 180px; }
+
+  table.courses {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  table.courses thead th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--ink-muted);
+    font-size: 11.5px;
+    letter-spacing: 0.03em;
+    padding: 0 8px 8px;
+    border-bottom: 1px solid var(--ink);
+  }
+  table.courses tbody td {
+    padding: 9px 8px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.courses tbody tr:hover { background: var(--panel); }
+  .cno { font-family: var(--mono); font-size: 12.5px; }
+  .cat-tag {
+    font-size: 11px;
+    color: var(--ink-muted);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 1px 5px;
+    display: inline-block;
+  }
+  .add-btn {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    color: var(--gold);
+    background: none;
+    border: 1px solid var(--gold);
+    border-radius: 3px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .add-btn:hover { background: var(--gold); color: var(--bg); }
+  .more-note { text-align: center; color: var(--ink-muted); font-size: 12.5px; padding: 14px 0; }
+
+  /* ---- Enrollment panel ---- */
+  .enrolled {
+    margin-top: 40px;
+  }
+  .enrolled h2 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 18px;
+    margin: 0 0 14px;
+  }
+  .erow {
+    display: grid;
+    grid-template-columns: 90px 1fr 140px 110px 90px 28px;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13.5px;
+  }
+  .erow.head {
+    font-size: 11px;
+    color: var(--ink-muted);
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--ink);
+  }
+  .erow select, .erow input {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    background: var(--panel);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 4px 6px;
+    width: 100%;
+  }
+  .erow .rm {
+    background: none;
+    border: none;
+    color: var(--rust);
+    cursor: pointer;
+    font-size: 15px;
+  }
+  .empty-note {
+    color: var(--ink-muted);
+    font-size: 13.5px;
+    padding: 20px 0;
+    border: 1px dashed var(--border);
+    text-align: center;
+  }
+
+  /* ---- Modal ---- */
+  .modal-bg {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(16,25,31,0.55);
+    align-items: center; justify-content: center;
+    z-index: 10;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 24px;
+    width: 340px;
+    max-width: 90vw;
+  }
+  .modal h3 {
+    font-family: var(--serif);
+    font-size: 16px;
+    margin: 0 0 4px;
+  }
+  .modal .mcno { font-family: var(--mono); color: var(--ink-muted); font-size: 12.5px; margin-bottom: 16px; }
+  .modal label {
+    display: block;
+    font-size: 12px;
+    color: var(--ink-muted);
+    margin: 14px 0 5px;
+  }
+  .modal select {
+    width: 100%;
+    font-family: var(--sans);
+    font-size: 13.5px;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 7px 8px;
+  }
+  .modal-actions {
+    margin-top: 22px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .btn {
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 7px 14px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .btn.primary { background: var(--gold); color: var(--bg); border: 1px solid var(--gold); }
+  .btn.ghost { background: none; color: var(--ink-muted); border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>履修台帳</h1>
+      <div class="sub">4年間の単位をメジャーの卒業要件に照らして確認する</div>
+    </div>
+    <div class="major-select">
+      メジャー
+      <select id="majorSelect">
+        <option>情報科学</option>
+      </select>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="ledger">
+      <h2>卒業要件の充足状況</h2>
+      <div id="catRows"></div>
+      <div class="ledger-total">
+        <span class="label">総計</span>
+        <span class="value" id="totalValue"></span>
+      </div>
+      <div class="ledger-note">
+        ゴールドの濃い部分は「履修済」、薄い部分は「計画中(履修中・確定・予定など)」の単位。必要単位の数字はクリックすると変更できます(ストリームや配属によって変わる場合はここで調整してください)。
+      </div>
+      <div class="cap-rules" id="capRules"></div>
+    </div>
+
+    <div class="main">
+      <div class="browser">
+        <h2>科目を探す</h2>
+        <div class="controls">
+          <input type="search" id="searchBox" placeholder="科目番号または科目タイトルで検索(例: ISC, 微積分)">
+          <select id="catFilter">
+            <option value="">すべての区分</option>
+          </select>
+        </div>
+        <table class="courses">
+          <thead>
+            <tr>
+              <th style="width:90px">科目番号</th>
+              <th>科目タイトル</th>
+              <th style="width:60px">単位</th>
+              <th style="width:110px">開講学期</th>
+              <th style="width:90px">区分</th>
+              <th style="width:70px"></th>
+            </tr>
+          </thead>
+          <tbody id="courseBody"></tbody>
+        </table>
+        <div class="more-note" id="moreNote"></div>
+      </div>
+
+      <div class="enrolled">
+        <h2>履修リスト(あなたのデータ)</h2>
+        <div id="enrolledArea"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3 id="modalTitle"></h3>
+    <div class="mcno" id="modalCno"></div>
+    <label>卒業要件区分としてカウント</label>
+    <select id="modalCategory"></select>
+    <label>状態</label>
+    <select id="modalStatus">
+      <option value="検討中">検討中</option>
+      <option value="仮予定">仮予定</option>
+      <option value="予定">予定</option>
+      <option value="確定">確定</option>
+      <option value="履修中">履修中</option>
+      <option value="履修済">履修済</option>
+    </select>
+    <label>学年・学期(自由入力・任意)</label>
+    <select id="modalTermFree" style="display:none"></select>
+    <input type="text" id="modalTermInput" placeholder="例: 1年 秋" style="width:100%;font-family:var(--sans);font-size:13.5px;color:var(--ink);background:var(--panel);border:1px solid var(--border);border-radius:3px;padding:7px 8px;">
+    <div class="modal-actions">
+      <button class="btn ghost" id="modalCancel">キャンセル</button>
+      <button class="btn primary" id="modalSave">履修リストに追加</button>
+    </div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="cap_rules.js"></script>
+<script>
+const STORAGE_KEY = 'icu_planner_enrollments_v1';
+const OVERRIDE_KEY = 'icu_planner_category_overrides_v1';
+
+function loadOverrides() {
+  try {
+    const raw = localStorage.getItem(OVERRIDE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+function saveOverrides(o) {
+  try { localStorage.setItem(OVERRIDE_KEY, JSON.stringify(o)); } catch (e) {}
+}
+let categoryOverrides = loadOverrides();
+function requiredFor(cat) {
+  const v = categoryOverrides[cat.id];
+  return (v === undefined || v === null || v === '') ? cat.required_credits : Number(v);
+}
+
+function loadEnrollments() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+function saveEnrollments(list) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch (e) {}
+}
+let enrollments = loadEnrollments();
+
+const catById = Object.fromEntries(CATEGORIES.map(c => [c.id, c]));
+const catByName = Object.fromEntries(CATEGORIES.map(c => [c.name, c]));
+
+function fmtTerms(offerings) {
+  const terms = [...new Set(offerings.map(o => o.term))];
+  return terms.join('/');
+}
+
+function renderCategoryFilter() {
+  const sel = document.getElementById('catFilter');
+  CATEGORIES.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.name;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+  const opt2 = document.createElement('option');
+  opt2.value = '__unclassified__';
+  opt2.textContent = '未分類';
+  sel.appendChild(opt2);
+}
+
+function renderCapRules(earned, planned) {
+  const el = document.getElementById('capRules');
+  if (typeof CAP_RULES === 'undefined' || !el) return;
+  let html = '';
+  CAP_RULES.forEach(rule => {
+    if (rule.type === 'minimum_within') {
+      const iscCredits = enrollments
+        .filter(e => e.category_id === rule.category_id && e.course_no.startsWith('ISC'))
+        .reduce((sum, e) => sum + (Number(e.credit) || 0), 0);
+      const short = iscCredits < rule.min_credits;
+      html += `<div class="rule${short ? ' warn' : ''}">${rule.description}<br><b>${iscCredits}</b> / ${rule.min_credits} 単位(ISC科目分)</div>`;
+    } else if (rule.type === 'excess_cap') {
+      html += `<div class="rule">${rule.description}</div>`;
+    }
+  });
+  el.innerHTML = html;
+}
+
+function renderLedger() {
+  const earned = {}, planned = {};
+  CATEGORIES.forEach(c => { earned[c.id] = 0; planned[c.id] = 0; });
+  enrollments.forEach(e => {
+    if (!catById[e.category_id]) return;
+    const credit = Number(e.credit) || 0;
+    if (e.status === '履修済') earned[e.category_id] += credit;
+    else planned[e.category_id] += credit;
+  });
+
+  const rows = document.getElementById('catRows');
+  rows.innerHTML = '';
+  let totalReq = 0, totalDone = 0;
+  CATEGORIES.forEach(c => {
+    const req = requiredFor(c);
+    totalReq += req;
+    const e = earned[c.id], p = planned[c.id];
+    totalDone += e;
+    const safeReq = req > 0 ? req : 1;
+    const pctE = Math.min(100, (e / safeReq) * 100);
+    const pctP = Math.min(100 - pctE, (p / safeReq) * 100);
+    const remaining = Math.max(0, req - e - p);
+    const over = (e + p) > req;
+    const isOverridden = categoryOverrides[c.id] !== undefined && categoryOverrides[c.id] !== null && categoryOverrides[c.id] !== '' && Number(categoryOverrides[c.id]) !== c.required_credits;
+    const row = document.createElement('div');
+    row.className = 'cat-row' + (over ? ' over' : '');
+    row.innerHTML = `
+      <div class="cat-name">
+        <span class="n">${c.name}</span>
+        <span class="nums"><b>${e + p}</b> / <span class="req-edit" data-id="${c.id}" title="クリックして必要単位を変更(規定 ${c.required_credits})">${req}</span> 単位${isOverridden ? ' <span style="opacity:.6">(規定'+c.required_credits+')</span>' : ''}<br>残り ${remaining}</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-earned" style="width:${pctE}%"></div>
+        <div class="bar-planned" style="left:${pctE}%; width:${pctP}%"></div>
+      </div>`;
+    rows.appendChild(row);
+  });
+  document.getElementById('totalValue').innerHTML = `<b>${totalDone}</b> / ${totalReq} 単位取得済`;
+  renderCapRules(earned, planned);
+
+  rows.querySelectorAll('.req-edit').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.id;
+      const cat = catById[id];
+      const current = requiredFor(cat);
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '0';
+      input.value = current;
+      input.style.width = '48px';
+      input.style.fontFamily = 'var(--mono)';
+      input.style.fontSize = '12.5px';
+      el.replaceWith(input);
+      input.focus();
+      input.select();
+      const commit = () => {
+        const val = input.value === '' ? cat.required_credits : Number(input.value);
+        if (val === cat.required_credits) delete categoryOverrides[id];
+        else categoryOverrides[id] = val;
+        saveOverrides(categoryOverrides);
+        renderLedger();
+      };
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', ev => { if (ev.key === 'Enter') input.blur(); });
+    });
+  });
+}
+
+function courseCategoryLabel(c) {
+  return c.category || '未分類';
+}
+
+function renderCourseTable() {
+  const q = document.getElementById('searchBox').value.trim().toUpperCase();
+  const catFilter = document.getElementById('catFilter').value;
+  const body = document.getElementById('courseBody');
+  body.innerHTML = '';
+
+  const addedCnos = new Set(enrollments.map(e => e.course_no));
+  let filtered = COURSES.filter(c => {
+    if (addedCnos.has(c.course_no)) return false;
+    if (q && !(c.course_no.toUpperCase().includes(q) || c.title_ja.includes(q))) return false;
+    if (catFilter === '__unclassified__' && c.category) return false;
+    if (catFilter && catFilter !== '__unclassified__' && c.category !== catFilter) return false;
+    return true;
+  });
+
+  const LIMIT = 80;
+  const shown = filtered.slice(0, LIMIT);
+  shown.forEach(c => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="cno">${c.course_no}</td>
+      <td>${c.title_ja}</td>
+      <td>${c.credit}</td>
+      <td>${fmtTerms(c.offerings)}</td>
+      <td><span class="cat-tag">${courseCategoryLabel(c)}</span></td>
+      <td><button class="add-btn" data-cno="${c.course_no}">追加</button></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  const note = document.getElementById('moreNote');
+  note.textContent = filtered.length > LIMIT
+    ? `他 ${filtered.length - LIMIT} 件。検索や区分で絞り込んでください。`
+    : (filtered.length === 0 ? '該当する科目が見つかりません。' : '');
+}
+
+function renderEnrolled() {
+  const area = document.getElementById('enrolledArea');
+  if (enrollments.length === 0) {
+    area.innerHTML = '<div class="empty-note">まだ何も追加されていません。上の科目一覧から「追加」してください。</div>';
+    return;
+  }
+  let html = `<div class="erow head">
+    <span>科目番号</span><span>タイトル</span><span>区分</span><span>状態</span><span>単位</span><span></span>
+  </div>`;
+  enrollments.forEach(e => {
+    html += `<div class="erow" data-id="${e.id}">
+      <span class="cno">${e.course_no}</span>
+      <span>${e.title_ja}</span>
+      <select class="e-cat">
+        ${CATEGORIES.map(c => `<option value="${c.id}" ${c.id===e.category_id?'selected':''}>${c.name}</option>`).join('')}
+      </select>
+      <select class="e-status">
+        ${['検討中','仮予定','予定','確定','履修中','履修済','取りやめ'].map(s => `<option ${s===e.status?'selected':''}>${s}</option>`).join('')}
+      </select>
+      <span>${e.credit}</span>
+      <button class="rm">✕</button>
+    </div>`;
+  });
+  area.innerHTML = html;
+
+  area.querySelectorAll('.erow[data-id]').forEach(row => {
+    const id = row.dataset.id;
+    row.querySelector('.e-cat').addEventListener('change', ev => {
+      const en = enrollments.find(x => x.id === id);
+      en.category_id = ev.target.value;
+      saveEnrollments(enrollments);
+      renderLedger();
+    });
+    row.querySelector('.e-status').addEventListener('change', ev => {
+      const en = enrollments.find(x => x.id === id);
+      en.status = ev.target.value;
+      saveEnrollments(enrollments);
+      renderLedger();
+    });
+    row.querySelector('.rm').addEventListener('click', () => {
+      enrollments = enrollments.filter(x => x.id !== id);
+      saveEnrollments(enrollments);
+      renderEnrolled();
+      renderLedger();
+      renderCourseTable();
+    });
+  });
+}
+
+let modalCourse = null;
+function openModal(cno) {
+  modalCourse = COURSES.find(c => c.course_no === cno);
+  if (!modalCourse) return;
+  document.getElementById('modalTitle').textContent = modalCourse.title_ja;
+  document.getElementById('modalCno').textContent = modalCourse.course_no + ' ・ ' + modalCourse.credit + '単位';
+  const catSel = document.getElementById('modalCategory');
+  catSel.innerHTML = CATEGORIES.map(c => `<option value="${c.id}" ${c.name===modalCourse.category?'selected':''}>${c.name}</option>`).join('');
+  document.getElementById('modalStatus').value = '検討中';
+  document.getElementById('modalTermInput').value = '';
+  document.getElementById('modalBg').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modalBg').classList.remove('open');
+  modalCourse = null;
+}
+
+document.getElementById('courseBody').addEventListener('click', ev => {
+  if (ev.target.classList.contains('add-btn')) {
+    openModal(ev.target.dataset.cno);
+  }
+});
+document.getElementById('modalCancel').addEventListener('click', closeModal);
+document.getElementById('modalBg').addEventListener('click', ev => {
+  if (ev.target.id === 'modalBg') closeModal();
+});
+document.getElementById('modalSave').addEventListener('click', () => {
+  if (!modalCourse) return;
+  enrollments.push({
+    id: 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    course_no: modalCourse.course_no,
+    title_ja: modalCourse.title_ja,
+    credit: modalCourse.credit,
+    category_id: document.getElementById('modalCategory').value,
+    status: document.getElementById('modalStatus').value,
+    term_label: document.getElementById('modalTermInput').value
+  });
+  saveEnrollments(enrollments);
+  closeModal();
+  renderEnrolled();
+  renderLedger();
+  renderCourseTable();
+});
+
+document.getElementById('searchBox').addEventListener('input', renderCourseTable);
+document.getElementById('catFilter').addEventListener('change', renderCourseTable);
+
+renderCategoryFilter();
+renderCourseTable();
+renderEnrolled();
+renderLedger();
+</script>
+</body>
+</html>
