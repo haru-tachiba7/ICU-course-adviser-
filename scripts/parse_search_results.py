@@ -14,6 +14,10 @@ HTMLファイルから、科目カタログと開講情報を抽出し、data.js
 
 依存パッケージ: beautifulsoup4, lxml
     pip install beautifulsoup4 lxml
+
+注意: 卒業要件区分(基礎科目/専攻科目/選択科目)は、ここでは判定しない。
+選択中のメジャーによって変わるため、index.html側の courseCategory() 関数で
+実行時に判定する(このスクリプトは prefix と level だけを出力する)。
 """
 
 import re
@@ -24,8 +28,10 @@ from collections import defaultdict
 
 from bs4 import BeautifulSoup
 
-# 科目番号の接頭辞から、機械的に判定できる卒業要件区分(語学・一般教育・保健体育・卒業研究)。
-CATEGORY_PREFIX_MAP = {
+# 科目番号の接頭辞から、メジャーによらず機械的に判定できる卒業要件区分
+# (語学・一般教育・保健体育・卒業研究)。専攻科目・基礎科目・選択科目は
+# index.html の courseCategory() でメジャーに応じて実行時に判定する。
+FIXED_CATEGORY_PREFIX_MAP = {
     "ELA": "英語(ELA)",
     "JLP": "日本語(JLP)",
     "GEH": "一般教育",
@@ -37,34 +43,9 @@ CATEGORY_PREFIX_MAP = {
     "STH": "卒業研究",
 }
 
-# メジャーとして選択している科目番号の接頭辞。
-MAJOR_PREFIX = "ISC"
-
-
-def hundred_level(course_no: str):
-    """科目番号の百の位を返す(例: ISC103 -> 1, EDU201 -> 2)。数字がなければNone。"""
-    m = re.search(r"\d+", course_no)
-    if not m:
-        return None
-    return int(m.group()[0])
-
-
-def classify_category(course_no: str, prefix: str):
-    """CATEGORY_PREFIX_MAP に無い科目に、卒業要件上の「専門科目」ルールを適用する。
-    基礎科目 = 100番台、専攻科目 = 200番台以上(ただし選択メジャーの科目のみ)、
-    それ以外(他メジャーの200番台以上)は選択科目。
-    """
-    if prefix in CATEGORY_PREFIX_MAP:
-        return CATEGORY_PREFIX_MAP[prefix]
-    lvl = hundred_level(course_no)
-    if lvl is None:
-        return None
-    if prefix == MAJOR_PREFIX:
-        return "基礎科目" if lvl == 1 else "専攻科目"
-    return "基礎科目" if lvl == 1 else "選択科目"
-
-# 卒業要件(必要単位)。ELA/JLPの必要単位は個人のストリームによって変わるため、
-# アプリ側で後から編集できるようになっている(ここではデフォルト値のみ)。
+# 卒業要件(必要単位)。ELA/JLPの必要単位は個人のストリーム・メジャーによって
+# 変わるため、アプリ側(ヘッダーの語学トラック選択、または数字クリック)で
+# 後から編集できるようになっている(ここではデフォルト値のみ)。
 REQUIREMENT_CATEGORIES = [
     {"id": "ela", "name": "英語(ELA)", "required_credits": 0},
     {"id": "jlp", "name": "日本語(JLP)", "required_credits": 22},
@@ -75,6 +56,14 @@ REQUIREMENT_CATEGORIES = [
     {"id": "thesis", "name": "卒業研究", "required_credits": 9},
     {"id": "elective", "name": "選択科目", "required_credits": 40},
 ]
+
+
+def hundred_level(course_no: str):
+    """科目番号の百の位を返す(例: ISC103 -> 1, EDU201 -> 2)。数字がなければNone。"""
+    m = re.search(r"\d+", course_no)
+    if not m:
+        return None
+    return int(m.group()[0])
 
 
 def parse_html(path: Path):
@@ -106,13 +95,14 @@ def parse_html(path: Path):
 
         prefix = "".join(ch for ch in cno if ch.isalpha())
         if cno not in catalog:
+            fixed_cat = FIXED_CATEGORY_PREFIX_MAP.get(prefix)
             catalog[cno] = {
                 "course_no": cno,
                 "title_ja": title,
                 "credit": credit,
-                "category": classify_category(cno, prefix),
-                "isc_relevance": "高" if prefix == MAJOR_PREFIX else None,
-                "interest_level": None,
+                "prefix": prefix,
+                "fixed_category": fixed_cat,
+                "level": None if fixed_cat else hundred_level(cno),
                 "offerings": [],
             }
         catalog[cno]["offerings"].append({
@@ -133,9 +123,9 @@ def main():
 
     counts = defaultdict(int)
     for c in courses:
-        counts[c["category"]] += 1
+        counts[c["fixed_category"] or f"(専門科目 lvl{c['level']})"] += 1
     print(f"抽出した科目数: {len(courses)}")
-    print("区分ごとの内訳:", dict(counts))
+    print("接頭辞区分ごとの内訳:", dict(counts))
 
     out_path = Path(__file__).resolve().parent.parent / "data.js"
     data_js = (

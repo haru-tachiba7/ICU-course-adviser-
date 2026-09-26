@@ -96,6 +96,9 @@
     padding: 6px 10px;
     margin-left: 8px;
   }
+  .major-select select + select,
+  .major-select select ~ select { margin-left: 8px; }
+  #elaStreamSelect { margin-left: 8px; }
 
   .layout {
     display: grid;
@@ -357,9 +360,9 @@
     </div>
     <div class="major-select">
       メジャー
-      <select id="majorSelect">
-        <option>情報科学</option>
-      </select>
+      <select id="majorSelect"></select>
+      <span style="margin-left:14px">語学トラック</span>
+      <select id="elaStreamSelect"></select>
     </div>
   </header>
 
@@ -384,6 +387,9 @@
           <input type="search" id="searchBox" placeholder="科目番号または科目タイトルで検索(例: ISC, 微積分)">
           <select id="catFilter">
             <option value="">すべての区分</option>
+          </select>
+          <select id="prefixFilter">
+            <option value="">すべてのメジャー(科目群)</option>
           </select>
         </div>
         <table class="courses">
@@ -437,9 +443,12 @@
 
 <script src="data.js"></script>
 <script src="cap_rules.js"></script>
+<script src="majors.js"></script>
 <script>
 const STORAGE_KEY = 'icu_planner_enrollments_v1';
 const OVERRIDE_KEY = 'icu_planner_category_overrides_v1';
+const MAJOR_KEY = 'icu_planner_major_v1';
+const ELA_STREAM_KEY = 'icu_planner_ela_stream_v1';
 
 function loadOverrides() {
   try {
@@ -455,6 +464,13 @@ function requiredFor(cat) {
   const v = categoryOverrides[cat.id];
   return (v === undefined || v === null || v === '') ? cat.required_credits : Number(v);
 }
+function setOverride(id, val, defaultVal) {
+  if (val === null || val === undefined || val === '' || Number(val) === Number(defaultVal)) {
+    delete categoryOverrides[id];
+  } else {
+    categoryOverrides[id] = Number(val);
+  }
+}
 
 function loadEnrollments() {
   try {
@@ -467,12 +483,67 @@ function saveEnrollments(list) {
 }
 let enrollments = loadEnrollments();
 
+function loadMajor() {
+  try { return localStorage.getItem(MAJOR_KEY) || 'ISC'; } catch (e) { return 'ISC'; }
+}
+function saveMajor(prefix) {
+  try { localStorage.setItem(MAJOR_KEY, prefix); } catch (e) {}
+}
+function loadElaStream() {
+  try { return localStorage.getItem(ELA_STREAM_KEY) || ''; } catch (e) { return ''; }
+}
+function saveElaStream(id) {
+  try { localStorage.setItem(ELA_STREAM_KEY, id); } catch (e) {}
+}
+let currentMajor = loadMajor();
+let currentElaStream = loadElaStream();
+
 const catById = Object.fromEntries(CATEGORIES.map(c => [c.id, c]));
 const catByName = Object.fromEntries(CATEGORIES.map(c => [c.name, c]));
+const majorByPrefix = Object.fromEntries((typeof MAJORS !== 'undefined' ? MAJORS : []).map(m => [m.prefix, m]));
 
 function fmtTerms(offerings) {
   const terms = [...new Set(offerings.map(o => o.term))];
   return terms.join('/');
+}
+
+// 科目の卒業要件区分は、選択中のメジャーによって変わる(基礎科目/専攻科目/選択科目の判定)。
+function courseCategory(c, majorPrefix) {
+  if (c.fixed_category) return c.fixed_category;
+  if (c.level == null) return null;
+  if (c.prefix === majorPrefix) return c.level === 1 ? '基礎科目' : '専攻科目';
+  return c.level === 1 ? '基礎科目' : '選択科目';
+}
+
+function renderMajorSelect() {
+  const sel = document.getElementById('majorSelect');
+  if (typeof MAJORS === 'undefined') return;
+  sel.innerHTML = MAJORS.map(m => `<option value="${m.prefix}" ${m.prefix===currentMajor?'selected':''}>${m.name}</option>`).join('');
+  sel.addEventListener('change', () => {
+    currentMajor = sel.value;
+    saveMajor(currentMajor);
+    renderCourseTable();
+    renderLedger();
+  });
+}
+
+function renderElaStreamSelect() {
+  const sel = document.getElementById('elaStreamSelect');
+  if (typeof ELA_STREAMS === 'undefined') return;
+  const options = ['<option value="">(手動設定)</option>']
+    .concat(ELA_STREAMS.map(s => `<option value="${s.id}" ${s.id===currentElaStream?'selected':''}>${s.label}</option>`));
+  sel.innerHTML = options.join('');
+  sel.addEventListener('change', () => {
+    currentElaStream = sel.value;
+    saveElaStream(currentElaStream);
+    const stream = ELA_STREAMS.find(s => s.id === currentElaStream);
+    if (stream) {
+      setOverride('ela', stream.ela_credits, catById['ela'] ? catById['ela'].required_credits : 0);
+      setOverride('elective', stream.elective_credits, catById['elective'] ? catById['elective'].required_credits : 0);
+      saveOverrides(categoryOverrides);
+    }
+    renderLedger();
+  });
 }
 
 function renderCategoryFilter() {
@@ -489,17 +560,25 @@ function renderCategoryFilter() {
   sel.appendChild(opt2);
 }
 
-function renderCapRules(earned, planned) {
+function renderPrefixFilter() {
+  const sel = document.getElementById('prefixFilter');
+  if (typeof MAJORS === 'undefined') return;
+  sel.innerHTML = '<option value="">すべてのメジャー(科目群)</option>' +
+    MAJORS.map(m => `<option value="${m.prefix}">${m.name}(${m.prefix})</option>`).join('');
+}
+
+function renderCapRules() {
   const el = document.getElementById('capRules');
   if (typeof CAP_RULES === 'undefined' || !el) return;
+  const majorName = majorByPrefix[currentMajor] ? majorByPrefix[currentMajor].name : currentMajor;
   let html = '';
   CAP_RULES.forEach(rule => {
     if (rule.type === 'minimum_within') {
-      const iscCredits = enrollments
-        .filter(e => e.category_id === rule.category_id && e.course_no.startsWith('ISC'))
+      const majorCredits = enrollments
+        .filter(e => e.category_id === rule.category_id && e.course_no.startsWith(currentMajor))
         .reduce((sum, e) => sum + (Number(e.credit) || 0), 0);
-      const short = iscCredits < rule.min_credits;
-      html += `<div class="rule${short ? ' warn' : ''}">${rule.description}<br><b>${iscCredits}</b> / ${rule.min_credits} 単位(ISC科目分)</div>`;
+      const short = majorCredits < rule.min_credits;
+      html += `<div class="rule${short ? ' warn' : ''}">${rule.description}<br><b>${majorCredits}</b> / ${rule.min_credits} 単位(${majorName}科目分)</div>`;
     } else if (rule.type === 'excess_cap') {
       html += `<div class="rule">${rule.description}</div>`;
     }
@@ -545,7 +624,7 @@ function renderLedger() {
     rows.appendChild(row);
   });
   document.getElementById('totalValue').innerHTML = `<b>${totalDone}</b> / ${totalReq} 単位取得済`;
-  renderCapRules(earned, planned);
+  renderCapRules();
 
   rows.querySelectorAll('.req-edit').forEach(el => {
     el.addEventListener('click', () => {
@@ -563,9 +642,7 @@ function renderLedger() {
       input.focus();
       input.select();
       const commit = () => {
-        const val = input.value === '' ? cat.required_credits : Number(input.value);
-        if (val === cat.required_credits) delete categoryOverrides[id];
-        else categoryOverrides[id] = val;
+        setOverride(id, input.value, cat.required_credits);
         saveOverrides(categoryOverrides);
         renderLedger();
       };
@@ -575,13 +652,10 @@ function renderLedger() {
   });
 }
 
-function courseCategoryLabel(c) {
-  return c.category || '未分類';
-}
-
 function renderCourseTable() {
   const q = document.getElementById('searchBox').value.trim().toUpperCase();
   const catFilter = document.getElementById('catFilter').value;
+  const prefixFilter = document.getElementById('prefixFilter').value;
   const body = document.getElementById('courseBody');
   body.innerHTML = '';
 
@@ -589,8 +663,10 @@ function renderCourseTable() {
   let filtered = COURSES.filter(c => {
     if (addedCnos.has(c.course_no)) return false;
     if (q && !(c.course_no.toUpperCase().includes(q) || c.title_ja.includes(q))) return false;
-    if (catFilter === '__unclassified__' && c.category) return false;
-    if (catFilter && catFilter !== '__unclassified__' && c.category !== catFilter) return false;
+    if (prefixFilter && c.prefix !== prefixFilter) return false;
+    const cat = courseCategory(c, currentMajor);
+    if (catFilter === '__unclassified__' && cat) return false;
+    if (catFilter && catFilter !== '__unclassified__' && cat !== catFilter) return false;
     return true;
   });
 
@@ -603,7 +679,7 @@ function renderCourseTable() {
       <td>${c.title_ja}</td>
       <td>${c.credit}</td>
       <td>${fmtTerms(c.offerings)}</td>
-      <td><span class="cat-tag">${courseCategoryLabel(c)}</span></td>
+      <td><span class="cat-tag">${courseCategory(c, currentMajor) || '未分類'}</span></td>
       <td><button class="add-btn" data-cno="${c.course_no}">追加</button></td>
     `;
     body.appendChild(tr);
@@ -671,7 +747,8 @@ function openModal(cno) {
   document.getElementById('modalTitle').textContent = modalCourse.title_ja;
   document.getElementById('modalCno').textContent = modalCourse.course_no + ' ・ ' + modalCourse.credit + '単位';
   const catSel = document.getElementById('modalCategory');
-  catSel.innerHTML = CATEGORIES.map(c => `<option value="${c.id}" ${c.name===modalCourse.category?'selected':''}>${c.name}</option>`).join('');
+  const defaultCatName = courseCategory(modalCourse, currentMajor);
+  catSel.innerHTML = CATEGORIES.map(c => `<option value="${c.id}" ${c.name===defaultCatName?'selected':''}>${c.name}</option>`).join('');
   document.getElementById('modalStatus').value = '検討中';
   document.getElementById('modalTermInput').value = '';
   document.getElementById('modalBg').classList.add('open');
@@ -710,8 +787,12 @@ document.getElementById('modalSave').addEventListener('click', () => {
 
 document.getElementById('searchBox').addEventListener('input', renderCourseTable);
 document.getElementById('catFilter').addEventListener('change', renderCourseTable);
+document.getElementById('prefixFilter').addEventListener('change', renderCourseTable);
 
+renderMajorSelect();
+renderElaStreamSelect();
 renderCategoryFilter();
+renderPrefixFilter();
 renderCourseTable();
 renderEnrolled();
 renderLedger();

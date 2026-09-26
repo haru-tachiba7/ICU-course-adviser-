@@ -10,10 +10,11 @@ root = Path(__file__).resolve().parent.parent
 index_html = (root / "index.html").read_text(encoding="utf-8")
 data_js = (root / "data.js").read_text(encoding="utf-8")
 cap_rules_js = (root / "cap_rules.js").read_text(encoding="utf-8")
+majors_js = (root / "majors.js").read_text(encoding="utf-8")
 
 merged = index_html.replace(
-    '<script src="data.js"></script>\n<script src="cap_rules.js"></script>',
-    f'<script>\n{data_js}</script>\n<script>\n{cap_rules_js}</script>'
+    '<script src="data.js"></script>\n<script src="cap_rules.js"></script>\n<script src="majors.js"></script>',
+    f'<script>\n{data_js}</script>\n<script>\n{cap_rules_js}</script>\n<script>\n{majors_js}</script>'
 )
 
 out = root / "dist_single_file.html"
