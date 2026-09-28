@@ -502,6 +502,31 @@ const catById = Object.fromEntries(CATEGORIES.map(c => [c.id, c]));
 const catByName = Object.fromEntries(CATEGORIES.map(c => [c.name, c]));
 const majorByPrefix = Object.fromEntries((typeof MAJORS !== 'undefined' ? MAJORS : []).map(m => [m.prefix, m]));
 
+// 単位の表記ゆれを数値にする。
+//  "3"      -> 3
+//  "(6)"    -> 6   (ELAなど、括弧付きは複数学期にまたがる科目の合計単位)
+//  "3/(9)"  -> 9   (卒業研究: 1学期3単位 x 3学期、合計9単位)
+//  "1/3"    -> 1/3 (PEエクササイズ: 3科目で1単位)
+function parseCredit(raw) {
+  const s = String(raw == null ? '' : raw).trim();
+  const paren = s.match(/\((\d+(?:\.\d+)?)\)/);
+  if (paren) return parseFloat(paren[1]);
+  const frac = s.match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (frac) return Number(frac[1]) / Number(frac[2]);
+  const n = parseFloat(s.replace(/[^\d.]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+// 合計表示用: 0.333...を3つ足して0.9999...になるような誤差を丸める
+function fmtNum(n) {
+  return String(Math.round(n * 100) / 100);
+}
+// 科目一覧などでの単位の表示用
+function displayCredit(raw) {
+  const s = String(raw == null ? '' : raw).trim();
+  if (/^\d+\s*\/\s*\d+$/.test(s)) return s;   // 1/3 はそのまま
+  return fmtNum(parseCredit(s));
+}
+
 function fmtTerms(offerings) {
   const terms = [...new Set(offerings.map(o => o.term))];
   return terms.join('/');
@@ -576,9 +601,9 @@ function renderCapRules() {
     if (rule.type === 'minimum_within') {
       const majorCredits = enrollments
         .filter(e => e.category_id === rule.category_id && e.course_no.startsWith(currentMajor))
-        .reduce((sum, e) => sum + (Number(e.credit) || 0), 0);
+        .reduce((sum, e) => sum + parseCredit(e.credit), 0);
       const short = majorCredits < rule.min_credits;
-      html += `<div class="rule${short ? ' warn' : ''}">${rule.description}<br><b>${majorCredits}</b> / ${rule.min_credits} 単位(${majorName}科目分)</div>`;
+      html += `<div class="rule${short ? ' warn' : ''}">${rule.description}<br><b>${fmtNum(majorCredits)}</b> / ${rule.min_credits} 単位(${majorName}科目分)</div>`;
     } else if (rule.type === 'excess_cap') {
       html += `<div class="rule">${rule.description}</div>`;
     }
@@ -591,7 +616,7 @@ function renderLedger() {
   CATEGORIES.forEach(c => { earned[c.id] = 0; planned[c.id] = 0; });
   enrollments.forEach(e => {
     if (!catById[e.category_id]) return;
-    const credit = Number(e.credit) || 0;
+    const credit = parseCredit(e.credit);
     if (e.status === '履修済') earned[e.category_id] += credit;
     else planned[e.category_id] += credit;
   });
@@ -615,7 +640,7 @@ function renderLedger() {
     row.innerHTML = `
       <div class="cat-name">
         <span class="n">${c.name}</span>
-        <span class="nums"><b>${e + p}</b> / <span class="req-edit" data-id="${c.id}" title="クリックして必要単位を変更(規定 ${c.required_credits})">${req}</span> 単位${isOverridden ? ' <span style="opacity:.6">(規定'+c.required_credits+')</span>' : ''}<br>残り ${remaining}</span>
+        <span class="nums"><b>${fmtNum(e + p)}</b> / <span class="req-edit" data-id="${c.id}" title="クリックして必要単位を変更(規定 ${c.required_credits})">${req}</span> 単位${isOverridden ? ' <span style="opacity:.6">(規定'+c.required_credits+')</span>' : ''}<br>残り ${fmtNum(remaining)}</span>
       </div>
       <div class="bar-track">
         <div class="bar-earned" style="width:${pctE}%"></div>
@@ -623,7 +648,7 @@ function renderLedger() {
       </div>`;
     rows.appendChild(row);
   });
-  document.getElementById('totalValue').innerHTML = `<b>${totalDone}</b> / ${totalReq} 単位取得済`;
+  document.getElementById('totalValue').innerHTML = `<b>${fmtNum(totalDone)}</b> / ${totalReq} 単位取得済`;
   renderCapRules();
 
   rows.querySelectorAll('.req-edit').forEach(el => {
@@ -677,7 +702,7 @@ function renderCourseTable() {
     tr.innerHTML = `
       <td class="cno">${c.course_no}</td>
       <td>${c.title_ja}</td>
-      <td>${c.credit}</td>
+      <td>${displayCredit(c.credit)}</td>
       <td>${fmtTerms(c.offerings)}</td>
       <td><span class="cat-tag">${courseCategory(c, currentMajor) || '未分類'}</span></td>
       <td><button class="add-btn" data-cno="${c.course_no}">追加</button></td>
@@ -710,7 +735,7 @@ function renderEnrolled() {
       <select class="e-status">
         ${['検討中','仮予定','予定','確定','履修中','履修済','取りやめ'].map(s => `<option ${s===e.status?'selected':''}>${s}</option>`).join('')}
       </select>
-      <span>${e.credit}</span>
+      <span>${displayCredit(e.credit)}</span>
       <button class="rm">✕</button>
     </div>`;
   });
@@ -745,7 +770,7 @@ function openModal(cno) {
   modalCourse = COURSES.find(c => c.course_no === cno);
   if (!modalCourse) return;
   document.getElementById('modalTitle').textContent = modalCourse.title_ja;
-  document.getElementById('modalCno').textContent = modalCourse.course_no + ' ・ ' + modalCourse.credit + '単位';
+  document.getElementById('modalCno').textContent = modalCourse.course_no + ' ・ ' + displayCredit(modalCourse.credit) + '単位';
   const catSel = document.getElementById('modalCategory');
   const defaultCatName = courseCategory(modalCourse, currentMajor);
   catSel.innerHTML = CATEGORIES.map(c => `<option value="${c.id}" ${c.name===defaultCatName?'selected':''}>${c.name}</option>`).join('');
