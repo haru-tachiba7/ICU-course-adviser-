@@ -257,7 +257,7 @@
   }
   .erow {
     display: grid;
-    grid-template-columns: 90px 1fr 140px 110px 90px 28px;
+    grid-template-columns: 84px 1fr 130px 218px 44px 28px;
     gap: 10px;
     align-items: center;
     padding: 8px 0;
@@ -295,59 +295,93 @@
     text-align: center;
   }
 
-  /* ---- Modal ---- */
-  .modal-bg {
-    display: none;
-    position: fixed; inset: 0;
-    background: rgba(16,25,31,0.55);
-    align-items: center; justify-content: center;
-    z-index: 10;
-  }
-  .modal-bg.open { display: flex; }
-  .modal {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    padding: 24px;
-    width: 340px;
-    max-width: 90vw;
-  }
-  .modal h3 {
-    font-family: var(--serif);
-    font-size: 16px;
-    margin: 0 0 4px;
-  }
-  .modal .mcno { font-family: var(--mono); color: var(--ink-muted); font-size: 12.5px; margin-bottom: 16px; }
-  .modal label {
-    display: block;
-    font-size: 12px;
-    color: var(--ink-muted);
-    margin: 14px 0 5px;
-  }
-  .modal select {
-    width: 100%;
-    font-family: var(--sans);
-    font-size: 13.5px;
-    color: var(--ink);
+  /* ---- 追加時の状態(セグメント) ---- */
+  .add-mode {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    margin-bottom: 14px;
+    padding: 10px 12px;
     background: var(--panel);
     border: 1px solid var(--border);
+  }
+  .add-mode-label { font-size: 12.5px; color: var(--ink-muted); }
+  .add-mode-hint { font-size: 12px; color: var(--ink-muted); }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--border);
     border-radius: 3px;
-    padding: 7px 8px;
+    overflow: hidden;
   }
-  .modal-actions {
-    margin-top: 22px;
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-  }
-  .btn {
+  .seg button {
     font-family: var(--sans);
     font-size: 13px;
-    padding: 7px 14px;
-    border-radius: 3px;
+    background: var(--bg);
+    color: var(--ink-muted);
+    border: 0;
+    padding: 6px 14px;
     cursor: pointer;
   }
-  .btn.primary { background: var(--gold); color: var(--bg); border: 1px solid var(--gold); }
-  .btn.ghost { background: none; color: var(--ink-muted); border: 1px solid var(--border); }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button.on { background: var(--gold); color: var(--bg); }
+
+  /* ---- 履修リストの状態チップ ---- */
+  .chips { display: inline-flex; gap: 4px; }
+  .chip {
+    font-family: var(--sans);
+    font-size: 12px;
+    background: none;
+    color: var(--ink-muted);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 3px 7px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .chip:hover { border-color: var(--gold); color: var(--ink); }
+  .chip.on { background: var(--gold); border-color: var(--gold); color: var(--bg); }
+  .e-title { min-width: 0; }
+
+  @media (max-width: 760px) {
+    .erow.head { display: none; }
+    .erow { display: flex; flex-wrap: wrap; gap: 8px 10px; }
+    .erow > .cno { order: 1; }
+    .erow > .rm { order: 1; margin-left: auto; }
+    .erow > .e-title { order: 2; flex: 1 1 100%; }
+    .erow > .e-cat { order: 3; flex: 1 1 130px; width: auto; }
+    .erow > .e-status-cell { order: 4; }
+    .erow > .e-credit { order: 5; }
+  }
+
+  /* ---- トースト(取り消し) ---- */
+  .toast {
+    display: none;
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    align-items: center;
+    gap: 14px;
+    max-width: 92vw;
+    padding: 10px 14px;
+    background: var(--ink);
+    color: var(--bg);
+    font-size: 13.5px;
+    border-radius: 3px;
+    z-index: 20;
+  }
+  .toast.show { display: flex; }
+  .toast button {
+    font-family: var(--sans);
+    font-size: 13px;
+    background: none;
+    border: 1px solid currentColor;
+    color: inherit;
+    border-radius: 3px;
+    padding: 3px 10px;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -383,6 +417,11 @@
     <div class="main">
       <div class="browser">
         <h2>科目を探す</h2>
+        <div class="add-mode">
+          <span class="add-mode-label">追加時の状態</span>
+          <div class="seg" id="addStatusSeg"></div>
+          <span class="add-mode-hint">「追加」を押すと、この状態ですぐ履修リストに入ります</span>
+        </div>
         <div class="controls">
           <input type="search" id="searchBox" placeholder="科目番号または科目タイトルで検索(例: ISC, 微積分)">
           <select id="catFilter">
@@ -400,7 +439,7 @@
               <th style="width:60px">単位</th>
               <th style="width:110px">開講学期</th>
               <th style="width:90px">区分</th>
-              <th style="width:70px"></th>
+              <th style="width:96px"></th>
             </tr>
           </thead>
           <tbody id="courseBody"></tbody>
@@ -416,30 +455,7 @@
   </div>
 </div>
 
-<div class="modal-bg" id="modalBg">
-  <div class="modal">
-    <h3 id="modalTitle"></h3>
-    <div class="mcno" id="modalCno"></div>
-    <label>卒業要件区分としてカウント</label>
-    <select id="modalCategory"></select>
-    <label>状態</label>
-    <select id="modalStatus">
-      <option value="検討中">検討中</option>
-      <option value="仮予定">仮予定</option>
-      <option value="予定">予定</option>
-      <option value="確定">確定</option>
-      <option value="履修中">履修中</option>
-      <option value="履修済">履修済</option>
-    </select>
-    <label>学年・学期(自由入力・任意)</label>
-    <select id="modalTermFree" style="display:none"></select>
-    <input type="text" id="modalTermInput" placeholder="例: 1年 秋" style="width:100%;font-family:var(--sans);font-size:13.5px;color:var(--ink);background:var(--panel);border:1px solid var(--border);border-radius:3px;padding:7px 8px;">
-    <div class="modal-actions">
-      <button class="btn ghost" id="modalCancel">キャンセル</button>
-      <button class="btn primary" id="modalSave">履修リストに追加</button>
-    </div>
-  </div>
-</div>
+<div class="toast" id="toast"></div>
 
 <script src="data.js"></script>
 <script src="cap_rules.js"></script>
@@ -497,6 +513,21 @@ function saveElaStream(id) {
 }
 let currentMajor = loadMajor();
 let currentElaStream = loadElaStream();
+
+// 追加時の状態(科目一覧の「追加」を押したときに入る状態)。選んだ状態は次回も引き継ぐ。
+const ADD_STATUS_KEY = 'icu_planner_add_status_v1';
+const STATUS_MAIN = ['履修済', '履修中', '予定', '検討中'];
+const STATUS_ALL = ['履修済', '履修中', '予定', '検討中', '仮予定', '確定', '取りやめ'];
+function loadAddStatus() {
+  try {
+    const v = localStorage.getItem(ADD_STATUS_KEY);
+    return STATUS_MAIN.includes(v) ? v : '履修済';
+  } catch (e) { return '履修済'; }
+}
+function saveAddStatus(v) {
+  try { localStorage.setItem(ADD_STATUS_KEY, v); } catch (e) {}
+}
+let addStatus = loadAddStatus();
 
 const catById = Object.fromEntries(CATEGORIES.map(c => [c.id, c]));
 const catByName = Object.fromEntries(CATEGORIES.map(c => [c.name, c]));
@@ -600,7 +631,7 @@ function renderCapRules() {
   CAP_RULES.forEach(rule => {
     if (rule.type === 'minimum_within') {
       const majorCredits = enrollments
-        .filter(e => e.category_id === rule.category_id && e.course_no.startsWith(currentMajor))
+        .filter(e => e.status !== '取りやめ' && e.category_id === rule.category_id && e.course_no.startsWith(currentMajor))
         .reduce((sum, e) => sum + parseCredit(e.credit), 0);
       const short = majorCredits < rule.min_credits;
       html += `<div class="rule${short ? ' warn' : ''}">${rule.description}<br><b>${fmtNum(majorCredits)}</b> / ${rule.min_credits} 単位(${majorName}科目分)</div>`;
@@ -616,6 +647,7 @@ function renderLedger() {
   CATEGORIES.forEach(c => { earned[c.id] = 0; planned[c.id] = 0; });
   enrollments.forEach(e => {
     if (!catById[e.category_id]) return;
+    if (e.status === '取りやめ') return;
     const credit = parseCredit(e.credit);
     if (e.status === '履修済') earned[e.category_id] += credit;
     else planned[e.category_id] += credit;
@@ -705,7 +737,7 @@ function renderCourseTable() {
       <td>${displayCredit(c.credit)}</td>
       <td>${fmtTerms(c.offerings)}</td>
       <td><span class="cat-tag">${courseCategory(c, currentMajor) || '未分類'}</span></td>
-      <td><button class="add-btn" data-cno="${c.course_no}">追加</button></td>
+      <td><button class="add-btn" data-cno="${c.course_no}">＋ ${addStatus}</button></td>
     `;
     body.appendChild(tr);
   });
@@ -716,45 +748,59 @@ function renderCourseTable() {
     : (filtered.length === 0 ? '該当する科目が見つかりません。' : '');
 }
 
+function renderAddStatusSeg() {
+  const el = document.getElementById('addStatusSeg');
+  el.innerHTML = STATUS_MAIN.map(st => `<button data-status="${st}" class="${st === addStatus ? 'on' : ''}">${st}</button>`).join('');
+}
+
 function renderEnrolled() {
   const area = document.getElementById('enrolledArea');
   if (enrollments.length === 0) {
-    area.innerHTML = '<div class="empty-note">まだ何も追加されていません。上の科目一覧から「追加」してください。</div>';
+    area.innerHTML = '<div class="empty-note">まだ何も追加されていません。上の科目一覧から「＋」を押してください。</div>';
     return;
   }
   let html = `<div class="erow head">
-    <span>科目番号</span><span>タイトル</span><span>区分</span><span>状態</span><span>単位</span><span></span>
+    <span>科目番号</span><span>タイトル</span><span>区分</span><span>状態(クリックで変更)</span><span>単位</span><span></span>
   </div>`;
-  enrollments.forEach(e => {
+  // 新しく追加したものが上に来るように、追加順の逆で表示する
+  [...enrollments].reverse().forEach(e => {
+    const statusCell = STATUS_MAIN.includes(e.status)
+      ? `<div class="chips e-status-cell">${STATUS_MAIN.map(st => `<button class="chip${st === e.status ? ' on' : ''}" data-status="${st}">${st}</button>`).join('')}</div>`
+      : `<select class="e-status e-status-cell">${STATUS_ALL.map(st => `<option ${st === e.status ? 'selected' : ''}>${st}</option>`).join('')}</select>`;
     html += `<div class="erow" data-id="${e.id}">
       <span class="cno">${e.course_no}</span>
-      <span>${e.title_ja}</span>
+      <span class="e-title">${e.title_ja}</span>
       <select class="e-cat">
         ${CATEGORIES.map(c => `<option value="${c.id}" ${c.id===e.category_id?'selected':''}>${c.name}</option>`).join('')}
       </select>
-      <select class="e-status">
-        ${['検討中','仮予定','予定','確定','履修中','履修済','取りやめ'].map(s => `<option ${s===e.status?'selected':''}>${s}</option>`).join('')}
-      </select>
-      <span>${displayCredit(e.credit)}</span>
-      <button class="rm">✕</button>
+      ${statusCell}
+      <span class="e-credit">${displayCredit(e.credit)}</span>
+      <button class="rm" title="履修リストから外す">✕</button>
     </div>`;
   });
   area.innerHTML = html;
 
   area.querySelectorAll('.erow[data-id]').forEach(row => {
     const id = row.dataset.id;
+    const setStatus = (value) => {
+      const en = enrollments.find(x => x.id === id);
+      if (!en) return;
+      en.status = value;
+      saveEnrollments(enrollments);
+      renderEnrolled();
+      renderLedger();
+    };
     row.querySelector('.e-cat').addEventListener('change', ev => {
       const en = enrollments.find(x => x.id === id);
       en.category_id = ev.target.value;
       saveEnrollments(enrollments);
       renderLedger();
     });
-    row.querySelector('.e-status').addEventListener('change', ev => {
-      const en = enrollments.find(x => x.id === id);
-      en.status = ev.target.value;
-      saveEnrollments(enrollments);
-      renderLedger();
+    row.querySelectorAll('.chip').forEach(btn => {
+      btn.addEventListener('click', () => setStatus(btn.dataset.status));
     });
+    const sel = row.querySelector('select.e-status');
+    if (sel) sel.addEventListener('change', ev => setStatus(ev.target.value));
     row.querySelector('.rm').addEventListener('click', () => {
       enrollments = enrollments.filter(x => x.id !== id);
       saveEnrollments(enrollments);
@@ -765,55 +811,70 @@ function renderEnrolled() {
   });
 }
 
-let modalCourse = null;
-function openModal(cno) {
-  modalCourse = COURSES.find(c => c.course_no === cno);
-  if (!modalCourse) return;
-  document.getElementById('modalTitle').textContent = modalCourse.title_ja;
-  document.getElementById('modalCno').textContent = modalCourse.course_no + ' ・ ' + displayCredit(modalCourse.credit) + '単位';
-  const catSel = document.getElementById('modalCategory');
-  const defaultCatName = courseCategory(modalCourse, currentMajor);
-  catSel.innerHTML = CATEGORIES.map(c => `<option value="${c.id}" ${c.name===defaultCatName?'selected':''}>${c.name}</option>`).join('');
-  document.getElementById('modalStatus').value = '検討中';
-  document.getElementById('modalTermInput').value = '';
-  document.getElementById('modalBg').classList.add('open');
+// ---- トースト(追加した直後の取り消し) ----
+let toastTimer = null;
+function hideToast() {
+  document.getElementById('toast').classList.remove('show');
+  if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
 }
-function closeModal() {
-  document.getElementById('modalBg').classList.remove('open');
-  modalCourse = null;
+function showToast(message, onUndo) {
+  const el = document.getElementById('toast');
+  el.innerHTML = `<span></span><button type="button">取り消し</button>`;
+  el.querySelector('span').textContent = message;
+  el.querySelector('button').addEventListener('click', () => { onUndo(); hideToast(); });
+  el.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, 6000);
 }
 
-document.getElementById('courseBody').addEventListener('click', ev => {
-  if (ev.target.classList.contains('add-btn')) {
-    openModal(ev.target.dataset.cno);
-  }
-});
-document.getElementById('modalCancel').addEventListener('click', closeModal);
-document.getElementById('modalBg').addEventListener('click', ev => {
-  if (ev.target.id === 'modalBg') closeModal();
-});
-document.getElementById('modalSave').addEventListener('click', () => {
-  if (!modalCourse) return;
+// 科目をすぐに履修リストへ追加する(区分は科目とメジャーから自動、状態は「追加時の状態」)
+function addCourse(cno) {
+  const course = COURSES.find(c => c.course_no === cno);
+  if (!course) return;
+  if (enrollments.some(e => e.course_no === cno)) return;
+  const catName = courseCategory(course, currentMajor);
+  const cat = catByName[catName] || catById['elective'] || CATEGORIES[0];
+  const id = 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   enrollments.push({
-    id: 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
-    course_no: modalCourse.course_no,
-    title_ja: modalCourse.title_ja,
-    credit: modalCourse.credit,
-    category_id: document.getElementById('modalCategory').value,
-    status: document.getElementById('modalStatus').value,
-    term_label: document.getElementById('modalTermInput').value
+    id,
+    course_no: course.course_no,
+    title_ja: course.title_ja,
+    credit: course.credit,
+    category_id: cat.id,
+    status: addStatus,
+    term_label: ''
   });
   saveEnrollments(enrollments);
-  closeModal();
   renderEnrolled();
   renderLedger();
   renderCourseTable();
+  showToast(`${course.course_no} を「${addStatus}」で追加しました`, () => {
+    enrollments = enrollments.filter(x => x.id !== id);
+    saveEnrollments(enrollments);
+    renderEnrolled();
+    renderLedger();
+    renderCourseTable();
+  });
+}
+
+document.getElementById('courseBody').addEventListener('click', ev => {
+  const btn = ev.target.closest('.add-btn');
+  if (btn) addCourse(btn.dataset.cno);
+});
+document.getElementById('addStatusSeg').addEventListener('click', ev => {
+  const btn = ev.target.closest('button[data-status]');
+  if (!btn) return;
+  addStatus = btn.dataset.status;
+  saveAddStatus(addStatus);
+  renderAddStatusSeg();
+  renderCourseTable();   // 「＋ 履修済」などのボタン表示を更新
 });
 
 document.getElementById('searchBox').addEventListener('input', renderCourseTable);
 document.getElementById('catFilter').addEventListener('change', renderCourseTable);
 document.getElementById('prefixFilter').addEventListener('change', renderCourseTable);
 
+renderAddStatusSeg();
 renderMajorSelect();
 renderElaStreamSelect();
 renderCategoryFilter();
