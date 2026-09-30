@@ -636,7 +636,19 @@ function renderCapRules() {
       const short = majorCredits < rule.min_credits;
       html += `<div class="rule${short ? ' warn' : ''}">${rule.description}<br><b>${fmtNum(majorCredits)}</b> / ${rule.min_credits} 単位(${majorName}科目分)</div>`;
     } else if (rule.type === 'excess_cap') {
-      html += `<div class="rule">${rule.description}</div>`;
+      const cat = catById[rule.category_id];
+      const req = requiredFor(cat);
+      const assigned = enrollments
+        .filter(e => e.status !== '取りやめ' && e.category_id === rule.category_id)
+        .reduce((sum, e) => sum + parseCredit(e.credit), 0);
+      const surplus = Math.max(0, assigned - req);
+      const creditable = Math.min(surplus, rule.max_credits);
+      const overCap = Math.max(0, surplus - rule.max_credits);
+      let extra = `<br><b>${fmtNum(creditable)}</b> / ${rule.max_credits} 単位(選択科目に算入できる余剰分)`;
+      if (overCap > 0) {
+        extra += `<br><span style="color:var(--rust)">うち ${fmtNum(overCap)} 単位は上限を超えており、卒業要件として数えられません</span>`;
+      }
+      html += `<div class="rule">${rule.description}${extra}</div>`;
     }
   });
   el.innerHTML = html;
