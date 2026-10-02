@@ -245,6 +245,36 @@
   .add-btn:hover { background: var(--gold); color: var(--bg); }
   .more-note { text-align: center; color: var(--ink-muted); font-size: 12.5px; padding: 14px 0; }
 
+  .title-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: var(--ink);
+    text-align: left;
+    cursor: pointer;
+    border-bottom: 1px dotted var(--ink-muted);
+  }
+  .title-btn:hover { color: var(--gold); border-color: var(--gold); }
+  .detail-row td {
+    background: var(--panel);
+    padding: 12px 10px 14px;
+    font-size: 12.5px;
+  }
+  .detail-desc {
+    margin: 0 0 10px;
+    line-height: 1.6;
+  }
+  .detail-desc.empty { color: var(--ink-muted); font-style: italic; }
+  .offering-list { display: flex; flex-direction: column; gap: 4px; }
+  .offering-list div {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    color: var(--ink-muted);
+  }
+  .offering-list a { color: var(--gold); white-space: nowrap; }
+
   /* ---- Enrollment panel ---- */
   .enrolled {
     margin-top: 40px;
@@ -528,6 +558,7 @@ function saveAddStatus(v) {
   try { localStorage.setItem(ADD_STATUS_KEY, v); } catch (e) {}
 }
 let addStatus = loadAddStatus();
+let expandedCno = null; // 科目タイトルをクリックして詳細を開いている科目(1件のみ)
 
 const catById = Object.fromEntries(CATEGORIES.map(c => [c.id, c]));
 const catByName = Object.fromEntries(CATEGORIES.map(c => [c.name, c]));
@@ -745,19 +776,40 @@ function renderCourseTable() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="cno">${c.course_no}</td>
-      <td>${c.title_ja}</td>
+      <td><button type="button" class="title-btn" data-cno="${c.course_no}">${c.title_ja}</button></td>
       <td>${displayCredit(c.credit)}</td>
       <td>${fmtTerms(c.offerings)}</td>
       <td><span class="cat-tag">${courseCategory(c, currentMajor) || '未分類'}</span></td>
       <td><button class="add-btn" data-cno="${c.course_no}">＋ ${addStatus}</button></td>
     `;
     body.appendChild(tr);
+    if (c.course_no === expandedCno) {
+      body.appendChild(buildDetailRow(c));
+    }
   });
 
   const note = document.getElementById('moreNote');
   note.textContent = filtered.length > LIMIT
     ? `他 ${filtered.length - LIMIT} 件。検索や区分で絞り込んでください。`
     : (filtered.length === 0 ? '該当する科目が見つかりません。' : '');
+}
+
+// 科目タイトルをクリックしたときに開く詳細行(概要 + 開講情報 + 公式シラバスへのリンク)
+function buildDetailRow(c) {
+  const tr = document.createElement('tr');
+  tr.className = 'detail-row';
+  const descHtml = c.desc
+    ? `<p class="detail-desc">${c.desc}</p>`
+    : `<p class="detail-desc empty">概要はまだ取得できていません。公式シラバスのリンクから確認してください。</p>`;
+  const offeringsHtml = c.offerings.map(o => `
+    <div>
+      <span>${o.year}年度 ${o.term}学期</span>
+      <span>${o.instructor || '(担当未定)'}</span>
+      <span>${o.schedule || ''}</span>
+      ${o.syllabus_url ? `<a href="${o.syllabus_url}" target="_blank" rel="noopener">公式シラバスを見る ↗</a>` : ''}
+    </div>`).join('');
+  tr.innerHTML = `<td colspan="6">${descHtml}<div class="offering-list">${offeringsHtml}</div></td>`;
+  return tr;
 }
 
 function renderAddStatusSeg() {
@@ -870,8 +922,14 @@ function addCourse(cno) {
 }
 
 document.getElementById('courseBody').addEventListener('click', ev => {
-  const btn = ev.target.closest('.add-btn');
-  if (btn) addCourse(btn.dataset.cno);
+  const addBtn = ev.target.closest('.add-btn');
+  if (addBtn) { addCourse(addBtn.dataset.cno); return; }
+  const titleBtn = ev.target.closest('.title-btn');
+  if (titleBtn) {
+    const cno = titleBtn.dataset.cno;
+    expandedCno = (expandedCno === cno) ? null : cno;
+    renderCourseTable();
+  }
 });
 document.getElementById('addStatusSeg').addEventListener('click', ev => {
   const btn = ev.target.closest('button[data-status]');

@@ -103,6 +103,7 @@ def parse_html(path: Path):
                 "prefix": prefix,
                 "fixed_category": fixed_cat,
                 "level": None if fixed_cat else hundred_level(cno),
+                "desc": None,  # 授業概要。シラバス詳細の取り込みは別途(未実装)
                 "offerings": [],
             }
         catalog[cno]["offerings"].append({
