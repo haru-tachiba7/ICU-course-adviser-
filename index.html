@@ -99,6 +99,64 @@
   .major-select select + select,
   .major-select select ~ select { margin-left: 8px; }
   #elaStreamSelect { margin-left: 8px; }
+  .tutorial-open-btn {
+    margin-left: 14px;
+    font-family: var(--sans);
+    font-size: 12.5px;
+    color: var(--ink-muted);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  .tutorial-open-btn:hover { color: var(--gold); border-color: var(--gold); }
+
+  /* ---- チュートリアル(初回案内) ---- */
+  /* ハイライト枠自身のbox-shadowを画面全体に広げることで、枠の外側だけが暗くなる
+     「スポットライト」効果を作る(枠の中は透明なので、対象要素がそのまま明るく見える)。 */
+  .tutorial-highlight {
+    position: fixed;
+    border: 2px solid var(--gold);
+    border-radius: 6px;
+    box-shadow: 0 0 0 4000px rgba(16,25,31,0.55);
+    z-index: 51;
+    pointer-events: none;
+    transition: left .18s ease, top .18s ease, width .18s ease, height .18s ease;
+  }
+  :root:not([data-theme="dark"]) .tutorial-highlight { box-shadow: 0 0 0 4000px rgba(30,42,51,0.45); }
+  .tutorial-card {
+    position: fixed;
+    z-index: 52;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 18px 20px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .tutorial-progress {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-muted);
+    margin-bottom: 8px;
+  }
+  .tutorial-card h3 {
+    font-family: var(--serif);
+    font-size: 16px;
+    margin: 0 0 8px;
+  }
+  .tutorial-card p {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink);
+    margin: 0;
+  }
+  .tutorial-actions {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
   .layout {
     display: grid;
@@ -427,6 +485,7 @@
       <select id="majorSelect"></select>
       <span style="margin-left:14px">語学トラック</span>
       <select id="elaStreamSelect"></select>
+      <button type="button" id="tutorialBtn" class="tutorial-open-btn">使い方</button>
     </div>
   </header>
 
@@ -944,6 +1003,121 @@ document.getElementById('searchBox').addEventListener('input', renderCourseTable
 document.getElementById('catFilter').addEventListener('change', renderCourseTable);
 document.getElementById('prefixFilter').addEventListener('change', renderCourseTable);
 
+// ---- チュートリアル(初回案内) ----
+const TUTORIAL_KEY = 'icu_planner_tutorial_done_v1';
+function isTutorialDone() {
+  try { return localStorage.getItem(TUTORIAL_KEY) === '1'; } catch (e) { return false; }
+}
+function markTutorialDone() {
+  try { localStorage.setItem(TUTORIAL_KEY, '1'); } catch (e) {}
+}
+
+const TUTORIAL_STEPS = [
+  {
+    selector: '.major-select',
+    title: 'まずはあなたの情報を設定',
+    body: 'メジャーと、語学トラック(ELA)を選んでください。選ぶとすぐに、右側の卒業要件の必要単位に反映されます。※マイナーの選択はこのアプリではまだ対応していません(今後追加予定です)。'
+  },
+  {
+    selector: '.ledger',
+    title: '卒業要件の充足状況',
+    body: '卒業に必要な単位のうち、区分ごとに今どれだけ取得・計画できているか、あと何単位必要かをここで確認できます。'
+  },
+  {
+    selector: '#capRules',
+    title: '必要単位を超えた分',
+    body: '必要単位を超えて履修した分は、この「総計」の下に表示されます。選択科目としてどれだけ算入できるかもここで確認できます。(この表示はまだ仮の形で、今後UIを変更する予定です)'
+  },
+  {
+    selector: '#addStatusSeg',
+    title: '科目をかんたんに追加',
+    body: '上の「追加時の状態」(履修済・履修中など)を選んでおき、科目一覧の「＋」ボタンを押すだけで、その状態のまま履修リストに追加されます。'
+  },
+  {
+    selector: '.controls',
+    title: '科目をしぼりこむ',
+    body: '検索窓・区分・メジャーの3つを組み合わせて、見たい科目だけに絞り込めます。'
+  }
+];
+
+let tutorialStep = 0;
+let tutorialEls = null;
+
+function buildTutorialOverlay() {
+  const box = document.createElement('div');
+  box.className = 'tutorial-highlight';
+  const card = document.createElement('div');
+  card.className = 'tutorial-card';
+  tutorialEls = { box, card };
+}
+
+function positionTutorial() {
+  const step = TUTORIAL_STEPS[tutorialStep];
+  const { box, card } = tutorialEls;
+  const target = document.querySelector(step.selector);
+  if (target && target.scrollIntoView) {
+    try { target.scrollIntoView({ block: 'center' }); } catch (e) {}
+  }
+  const r = target ? target.getBoundingClientRect() : { left: 20, top: 20, width: 0, height: 0, bottom: 20 };
+  const pad = 6;
+  box.style.left = (r.left - pad) + 'px';
+  box.style.top = (r.top - pad) + 'px';
+  box.style.width = (r.width + pad * 2) + 'px';
+  box.style.height = (r.height + pad * 2) + 'px';
+
+  const cardWidth = Math.min(340, window.innerWidth - 32);
+  card.style.width = cardWidth + 'px';
+  let top = r.bottom + 14;
+  if (top + 190 > window.innerHeight) top = Math.max(14, r.top - 14 - 190);
+  let left = Math.min(Math.max(14, r.left), Math.max(14, window.innerWidth - cardWidth - 14));
+  card.style.top = top + 'px';
+  card.style.left = left + 'px';
+}
+
+function renderTutorialStep() {
+  const step = TUTORIAL_STEPS[tutorialStep];
+  const { card } = tutorialEls;
+  const isLast = tutorialStep === TUTORIAL_STEPS.length - 1;
+  card.innerHTML = `
+    <div class="tutorial-progress">ステップ ${tutorialStep + 1} / ${TUTORIAL_STEPS.length}</div>
+    <h3>${step.title}</h3>
+    <p>${step.body}</p>
+    <div class="tutorial-actions">
+      <button type="button" class="btn ghost" id="tutSkip">スキップ</button>
+      <div style="flex:1"></div>
+      ${tutorialStep > 0 ? '<button type="button" class="btn ghost" id="tutBack">戻る</button>' : ''}
+      <button type="button" class="btn primary" id="tutNext">${isLast ? '完了' : '次へ'}</button>
+    </div>`;
+  card.querySelector('#tutSkip').addEventListener('click', endTutorial);
+  card.querySelector('#tutNext').addEventListener('click', () => {
+    if (isLast) { endTutorial(); }
+    else { tutorialStep++; renderTutorialStep(); }
+  });
+  const backBtn = card.querySelector('#tutBack');
+  if (backBtn) backBtn.addEventListener('click', () => { tutorialStep--; renderTutorialStep(); });
+  positionTutorial();
+}
+
+function startTutorial() {
+  tutorialStep = 0;
+  if (!tutorialEls) buildTutorialOverlay();
+  document.body.appendChild(tutorialEls.box);
+  document.body.appendChild(tutorialEls.card);
+  window.addEventListener('resize', positionTutorial);
+  renderTutorialStep();
+}
+
+function endTutorial() {
+  markTutorialDone();
+  if (tutorialEls) {
+    tutorialEls.box.remove();
+    tutorialEls.card.remove();
+  }
+  window.removeEventListener('resize', positionTutorial);
+}
+
+document.getElementById('tutorialBtn').addEventListener('click', startTutorial);
+
 renderAddStatusSeg();
 renderMajorSelect();
 renderElaStreamSelect();
@@ -952,6 +1126,10 @@ renderPrefixFilter();
 renderCourseTable();
 renderEnrolled();
 renderLedger();
+
+if (!isTutorialDone()) {
+  setTimeout(startTutorial, 300);
+}
 </script>
 </body>
 </html>
