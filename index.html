@@ -481,8 +481,14 @@
       <div class="sub">4年間の単位をメジャーの卒業要件に照らして確認する</div>
     </div>
     <div class="major-select">
-      メジャー
+      履修形態
+      <select id="modeSelect"></select>
+      <span style="margin-left:14px">メジャー<span id="primaryLabelSuffix"></span></span>
       <select id="majorSelect"></select>
+      <span id="secondaryWrap" style="margin-left:14px; display:none">
+        <span id="secondaryLabel"></span>
+        <select id="secondarySelect"></select>
+      </span>
       <span style="margin-left:14px">語学トラック</span>
       <select id="elaStreamSelect"></select>
       <button type="button" id="tutorialBtn" class="tutorial-open-btn">使い方</button>
@@ -603,6 +609,27 @@ function saveElaStream(id) {
 let currentMajor = loadMajor();
 let currentElaStream = loadElaStream();
 
+// 履修形態: 'single'(メジャーのみ) / 'double'(ダブルメジャー) / 'minor'(メジャー・マイナー)
+const MODE_KEY = 'icu_planner_mode_v1';
+const SECONDARY_KEY = 'icu_planner_secondary_major_v1';
+function loadMode() {
+  try {
+    const v = localStorage.getItem(MODE_KEY);
+    return ['single', 'double', 'minor'].includes(v) ? v : 'single';
+  } catch (e) { return 'single'; }
+}
+function saveMode(v) {
+  try { localStorage.setItem(MODE_KEY, v); } catch (e) {}
+}
+function loadSecondary() {
+  try { return localStorage.getItem(SECONDARY_KEY) || ''; } catch (e) { return ''; }
+}
+function saveSecondary(prefix) {
+  try { localStorage.setItem(SECONDARY_KEY, prefix); } catch (e) {}
+}
+let currentMode = loadMode();
+let currentSecondary = loadSecondary();
+
 // 追加時の状態(科目一覧の「追加」を押したときに入る状態)。選んだ状態は次回も引き継ぐ。
 const ADD_STATUS_KEY = 'icu_planner_add_status_v1';
 const STATUS_MAIN = ['履修済', '履修中', '予定', '検討中'];
@@ -619,9 +646,65 @@ function saveAddStatus(v) {
 let addStatus = loadAddStatus();
 let expandedCno = null; // 科目タイトルをクリックして詳細を開いている科目(1件のみ)
 
-const catById = Object.fromEntries(CATEGORIES.map(c => [c.id, c]));
-const catByName = Object.fromEntries(CATEGORIES.map(c => [c.name, c]));
 const majorByPrefix = Object.fromEntries((typeof MAJORS !== 'undefined' ? MAJORS : []).map(m => [m.prefix, m]));
+const courseByNo = Object.fromEntries(COURSES.map(c => [c.course_no, c]));
+
+// 卒業要件の区分一覧は、履修形態(メジャーのみ/ダブルメジャー/メジャー・マイナー)によって
+// 項目構成が変わる(専攻科目が1本か2本かなど)。data.js の CATEGORIES は「メジャーのみ」の
+// 規定値として使い、実際にアプリが使う区分一覧は毎回ここで組み立て直す。
+function buildCategoriesForMode(mode) {
+  const base = [
+    { id: 'ela', name: '英語(ELA)', required_credits: 0 },
+    { id: 'jlp', name: '日本語(JLP)', required_credits: 22 },
+    { id: 'ge', name: '一般教育', required_credits: 18 },
+    { id: 'hpe', name: '保健体育', required_credits: 2 },
+    { id: 'foundation', name: '基礎科目', required_credits: 18 },
+  ];
+  if (mode === 'double') {
+    return base.concat([
+      { id: 'major', name: '専攻科目(メジャー1)', required_credits: 21 },
+      { id: 'major2', name: '専攻科目(メジャー2)', required_credits: 30 },
+      { id: 'thesis', name: '卒業研究', required_credits: 9 },
+      { id: 'elective', name: '選択科目', required_credits: 26 },
+    ]);
+  }
+  if (mode === 'minor') {
+    return base.concat([
+      { id: 'major', name: '専攻科目(メジャー)', required_credits: 21 },
+      { id: 'minor', name: '専攻科目(マイナー)', required_credits: 15 },
+      { id: 'thesis', name: '卒業研究', required_credits: 9 },
+      { id: 'elective', name: '選択科目', required_credits: 41 },
+    ]);
+  }
+  return base.concat([
+    { id: 'major', name: '専攻科目', required_credits: 21 },
+    { id: 'thesis', name: '卒業研究', required_credits: 9 },
+    { id: 'elective', name: '選択科目', required_credits: 40 },
+  ]);
+}
+
+let ACTIVE_CATEGORIES = [];
+let catById = {};
+let catByName = {};
+function rebuildCategories() {
+  ACTIVE_CATEGORIES = buildCategoriesForMode(currentMode);
+  catById = Object.fromEntries(ACTIVE_CATEGORIES.map(c => [c.id, c]));
+  catByName = Object.fromEntries(ACTIVE_CATEGORIES.map(c => [c.name, c]));
+}
+rebuildCategories();
+
+// ELAストリーム選択時(または履修形態の変更時)に、英語(ELA)・選択科目の必要単位を
+// 公式資料の数値に合わせて自動設定する。手動で数字をクリックして編集した場合も
+// 同じ仕組み(categoryOverrides)を使うため、動作は共通。
+function applyStreamOverride() {
+  const stream = (typeof ELA_STREAMS !== 'undefined' ? ELA_STREAMS : []).find(s => s.id === currentElaStream);
+  if (!stream) return;
+  setOverride('ela', stream.ela_credits, catById['ela'] ? catById['ela'].required_credits : 0);
+  const electiveVal = stream.elective_credits[currentMode];
+  const electiveDefault = catById['elective'] ? catById['elective'].required_credits : 0;
+  setOverride('elective', electiveVal, electiveDefault);
+  saveOverrides(categoryOverrides);
+}
 
 // 単位の表記ゆれを数値にする。
 //  "3"      -> 3
@@ -653,12 +736,57 @@ function fmtTerms(offerings) {
   return terms.join('/');
 }
 
-// 科目の卒業要件区分は、選択中のメジャーによって変わる(基礎科目/専攻科目/選択科目の判定)。
-function courseCategory(c, majorPrefix) {
+// 科目の卒業要件区分は、選択中の履修形態・メジャー(・第二メジャー/マイナー)によって変わる。
+function courseCategory(c) {
   if (c.fixed_category) return c.fixed_category;
   if (c.level == null) return null;
-  if (c.prefix === majorPrefix) return c.level === 1 ? '基礎科目' : '専攻科目';
-  return c.level === 1 ? '基礎科目' : '選択科目';
+  if (c.prefix === currentMajor) {
+    return c.level === 1 ? catById['foundation'].name : catById['major'].name;
+  }
+  if (currentMode !== 'single' && c.prefix === currentSecondary) {
+    const id = currentMode === 'double' ? 'major2' : 'minor';
+    return c.level === 1 ? catById['foundation'].name : catById[id].name;
+  }
+  return c.level === 1 ? catById['foundation'].name : catById['elective'].name;
+}
+
+const MODE_LABELS = { single: 'メジャーのみ', double: 'ダブルメジャー', minor: 'メジャー・マイナー' };
+
+function renderModeSelect() {
+  const sel = document.getElementById('modeSelect');
+  sel.innerHTML = Object.entries(MODE_LABELS)
+    .map(([v, label]) => `<option value="${v}" ${v===currentMode?'selected':''}>${label}</option>`).join('');
+  sel.addEventListener('change', () => {
+    currentMode = sel.value;
+    saveMode(currentMode);
+    rebuildCategories();
+    applyStreamOverride();
+    renderPrimaryLabel();
+    renderSecondaryVisibility();
+    renderCategoryFilter();
+    renderCourseTable();
+    renderEnrolled();
+    renderLedger();
+  });
+}
+
+function renderPrimaryLabel() {
+  const el = document.getElementById('primaryLabelSuffix');
+  el.textContent = currentMode === 'double' ? '1(卒業研究を行う)' : '';
+}
+
+function renderSecondaryVisibility() {
+  const wrap = document.getElementById('secondaryWrap');
+  const label = document.getElementById('secondaryLabel');
+  if (currentMode === 'double') {
+    wrap.style.display = '';
+    label.textContent = 'メジャー2(卒業研究なし)';
+  } else if (currentMode === 'minor') {
+    wrap.style.display = '';
+    label.textContent = 'マイナー';
+  } else {
+    wrap.style.display = 'none';
+  }
 }
 
 function renderMajorSelect() {
@@ -673,6 +801,23 @@ function renderMajorSelect() {
   });
 }
 
+function renderSecondarySelect() {
+  const sel = document.getElementById('secondarySelect');
+  if (typeof MAJORS === 'undefined') return;
+  if (!currentSecondary) {
+    currentSecondary = (MAJORS.find(m => m.prefix !== currentMajor) || MAJORS[0]).prefix;
+    saveSecondary(currentSecondary);
+  }
+  sel.innerHTML = MAJORS.map(m => `<option value="${m.prefix}" ${m.prefix===currentSecondary?'selected':''}>${m.name}</option>`).join('');
+  sel.addEventListener('change', () => {
+    currentSecondary = sel.value;
+    saveSecondary(currentSecondary);
+    renderCourseTable();
+    renderEnrolled();
+    renderLedger();
+  });
+}
+
 function renderElaStreamSelect() {
   const sel = document.getElementById('elaStreamSelect');
   if (typeof ELA_STREAMS === 'undefined') return;
@@ -682,19 +827,16 @@ function renderElaStreamSelect() {
   sel.addEventListener('change', () => {
     currentElaStream = sel.value;
     saveElaStream(currentElaStream);
-    const stream = ELA_STREAMS.find(s => s.id === currentElaStream);
-    if (stream) {
-      setOverride('ela', stream.ela_credits, catById['ela'] ? catById['ela'].required_credits : 0);
-      setOverride('elective', stream.elective_credits, catById['elective'] ? catById['elective'].required_credits : 0);
-      saveOverrides(categoryOverrides);
-    }
+    applyStreamOverride();
     renderLedger();
   });
 }
 
 function renderCategoryFilter() {
   const sel = document.getElementById('catFilter');
-  CATEGORIES.forEach(c => {
+  const current = sel.value;
+  sel.innerHTML = '<option value="">すべての区分</option>';
+  ACTIVE_CATEGORIES.forEach(c => {
     const opt = document.createElement('option');
     opt.value = c.name;
     opt.textContent = c.name;
@@ -704,6 +846,7 @@ function renderCategoryFilter() {
   opt2.value = '__unclassified__';
   opt2.textContent = '未分類';
   sel.appendChild(opt2);
+  if ([...sel.options].some(o => o.value === current)) sel.value = current;
 }
 
 function renderPrefixFilter() {
@@ -713,40 +856,68 @@ function renderPrefixFilter() {
     MAJORS.map(m => `<option value="${m.prefix}">${m.name}(${m.prefix})</option>`).join('');
 }
 
+// 基礎科目の「特定メジャーから最低n単位」を計算して1行分のHTMLを作る(履修形態によって複数回使う)
+function minWithinRow(categoryId, prefix, minCredits, label) {
+  const got = enrollments
+    .filter(e => e.status !== '取りやめ' && e.category_id === categoryId && e.course_no.startsWith(prefix))
+    .reduce((sum, e) => sum + parseCredit(e.credit), 0);
+  const short = got < minCredits;
+  return `<div class="rule${short ? ' warn' : ''}">${label}<br><b>${fmtNum(got)}</b> / ${minCredits} 単位</div>`;
+}
+
 function renderCapRules() {
   const el = document.getElementById('capRules');
   if (typeof CAP_RULES === 'undefined' || !el) return;
-  const majorName = majorByPrefix[currentMajor] ? majorByPrefix[currentMajor].name : currentMajor;
   let html = '';
+
+  // 一般教育・保健体育: 必修超過分のうち選択科目に算入できる単位数(履修形態によらず共通)
   CAP_RULES.forEach(rule => {
-    if (rule.type === 'minimum_within') {
-      const majorCredits = enrollments
-        .filter(e => e.status !== '取りやめ' && e.category_id === rule.category_id && e.course_no.startsWith(currentMajor))
-        .reduce((sum, e) => sum + parseCredit(e.credit), 0);
-      const short = majorCredits < rule.min_credits;
-      html += `<div class="rule${short ? ' warn' : ''}">${rule.description}<br><b>${fmtNum(majorCredits)}</b> / ${rule.min_credits} 単位(${majorName}科目分)</div>`;
-    } else if (rule.type === 'excess_cap') {
-      const cat = catById[rule.category_id];
-      const req = requiredFor(cat);
-      const assigned = enrollments
-        .filter(e => e.status !== '取りやめ' && e.category_id === rule.category_id)
-        .reduce((sum, e) => sum + parseCredit(e.credit), 0);
-      const surplus = Math.max(0, assigned - req);
-      const creditable = Math.min(surplus, rule.max_credits);
-      const overCap = Math.max(0, surplus - rule.max_credits);
-      let extra = `<br><b>${fmtNum(creditable)}</b> / ${rule.max_credits} 単位(選択科目に算入できる余剰分)`;
-      if (overCap > 0) {
-        extra += `<br><span style="color:var(--rust)">うち ${fmtNum(overCap)} 単位は上限を超えており、卒業要件として数えられません</span>`;
-      }
-      html += `<div class="rule">${rule.description}${extra}</div>`;
+    const cat = catById[rule.category_id];
+    if (!cat) return;
+    const req = requiredFor(cat);
+    const assigned = enrollments
+      .filter(e => e.status !== '取りやめ' && e.category_id === rule.category_id)
+      .reduce((sum, e) => sum + parseCredit(e.credit), 0);
+    const surplus = Math.max(0, assigned - req);
+    const creditable = Math.min(surplus, rule.max_credits);
+    const overCap = Math.max(0, surplus - rule.max_credits);
+    let extra = `<br><b>${fmtNum(creditable)}</b> / ${rule.max_credits} 単位(選択科目に算入できる余剰分)`;
+    if (overCap > 0) {
+      extra += `<br><span style="color:var(--rust)">うち ${fmtNum(overCap)} 単位は上限を超えており、卒業要件として数えられません</span>`;
     }
+    html += `<div class="rule">${rule.description}${extra}</div>`;
   });
+
+  // 基礎科目の最低6単位ルール・専攻科目(メジャー2)の300番台最低3単位ルール
+  // (履修形態によって本数・対象メジャーが変わる)
+  const primaryName = majorByPrefix[currentMajor] ? majorByPrefix[currentMajor].name : currentMajor;
+  const secondaryName = majorByPrefix[currentSecondary] ? majorByPrefix[currentSecondary].name : currentSecondary;
+  if (currentMode === 'single') {
+    html += minWithinRow('foundation', currentMajor, 6,
+      `基礎科目18単位のうち、メジャー(${primaryName})の基礎科目から最低6単位を含める必要がある`);
+  } else if (currentMode === 'double') {
+    html += minWithinRow('foundation', currentMajor, 6,
+      `基礎科目18単位のうち、メジャー1(${primaryName})の基礎科目から最低6単位を含める必要がある`);
+    html += minWithinRow('foundation', currentSecondary, 6,
+      `基礎科目18単位のうち、メジャー2(${secondaryName})の基礎科目から最低6単位を含める必要がある`);
+    const l300 = enrollments
+      .filter(e => e.status !== '取りやめ' && e.category_id === 'major2' && courseByNo[e.course_no] && courseByNo[e.course_no].level >= 3)
+      .reduce((sum, e) => sum + parseCredit(e.credit), 0);
+    const short300 = l300 < 3;
+    html += `<div class="rule${short300 ? ' warn' : ''}">専攻科目(メジャー2)30単位のうち、300番台科目を最低3単位含める必要がある<br><b>${fmtNum(l300)}</b> / 3 単位</div>`;
+  } else if (currentMode === 'minor') {
+    html += minWithinRow('foundation', currentMajor, 6,
+      `基礎科目18単位のうち、メジャー(${primaryName})の基礎科目から最低6単位を含める必要がある`);
+    html += minWithinRow('foundation', currentSecondary, 6,
+      `基礎科目18単位のうち、マイナー(${secondaryName})の基礎科目から最低6単位を含める必要がある`);
+  }
+
   el.innerHTML = html;
 }
 
 function renderLedger() {
   const earned = {}, planned = {};
-  CATEGORIES.forEach(c => { earned[c.id] = 0; planned[c.id] = 0; });
+  ACTIVE_CATEGORIES.forEach(c => { earned[c.id] = 0; planned[c.id] = 0; });
   enrollments.forEach(e => {
     if (!catById[e.category_id]) return;
     if (e.status === '取りやめ') return;
@@ -758,7 +929,7 @@ function renderLedger() {
   const rows = document.getElementById('catRows');
   rows.innerHTML = '';
   let totalReq = 0, totalDone = 0;
-  CATEGORIES.forEach(c => {
+  ACTIVE_CATEGORIES.forEach(c => {
     const req = requiredFor(c);
     totalReq += req;
     const e = earned[c.id], p = planned[c.id];
@@ -823,7 +994,7 @@ function renderCourseTable() {
     if (addedCnos.has(c.course_no)) return false;
     if (q && !(c.course_no.toUpperCase().includes(q) || c.title_ja.includes(q))) return false;
     if (prefixFilter && c.prefix !== prefixFilter) return false;
-    const cat = courseCategory(c, currentMajor);
+    const cat = courseCategory(c);
     if (catFilter === '__unclassified__' && cat) return false;
     if (catFilter && catFilter !== '__unclassified__' && cat !== catFilter) return false;
     return true;
@@ -838,7 +1009,7 @@ function renderCourseTable() {
       <td><button type="button" class="title-btn" data-cno="${c.course_no}">${c.title_ja}</button></td>
       <td>${displayCredit(c.credit)}</td>
       <td>${fmtTerms(c.offerings)}</td>
-      <td><span class="cat-tag">${courseCategory(c, currentMajor) || '未分類'}</span></td>
+      <td><span class="cat-tag">${courseCategory(c) || '未分類'}</span></td>
       <td><button class="add-btn" data-cno="${c.course_no}">＋ ${addStatus}</button></td>
     `;
     body.appendChild(tr);
@@ -894,7 +1065,7 @@ function renderEnrolled() {
       <span class="cno">${e.course_no}</span>
       <span class="e-title">${e.title_ja}</span>
       <select class="e-cat">
-        ${CATEGORIES.map(c => `<option value="${c.id}" ${c.id===e.category_id?'selected':''}>${c.name}</option>`).join('')}
+        ${ACTIVE_CATEGORIES.map(c => `<option value="${c.id}" ${c.id===e.category_id?'selected':''}>${c.name}</option>`).join('')}
       </select>
       ${statusCell}
       <span class="e-credit">${displayCredit(e.credit)}</span>
@@ -955,8 +1126,8 @@ function addCourse(cno) {
   const course = COURSES.find(c => c.course_no === cno);
   if (!course) return;
   if (enrollments.some(e => e.course_no === cno)) return;
-  const catName = courseCategory(course, currentMajor);
-  const cat = catByName[catName] || catById['elective'] || CATEGORIES[0];
+  const catName = courseCategory(course);
+  const cat = catByName[catName] || catById['elective'] || ACTIVE_CATEGORIES[0];
   const id = 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   enrollments.push({
     id,
@@ -1016,7 +1187,7 @@ const TUTORIAL_STEPS = [
   {
     selector: '.major-select',
     title: 'まずはあなたの情報を設定',
-    body: 'メジャーと、語学トラック(ELA)を選んでください。選ぶとすぐに、右側の卒業要件の必要単位に反映されます。※マイナーの選択はこのアプリではまだ対応していません(今後追加予定です)。'
+    body: 'まず「履修形態」(メジャーのみ/ダブルメジャー/メジャー・マイナー)を選び、続けてメジャー(・第二メジャーやマイナー)、語学トラック(ELA)を選んでください。選ぶとすぐに、右側の卒業要件の必要単位に反映されます。'
   },
   {
     selector: '.ledger',
@@ -1119,7 +1290,11 @@ function endTutorial() {
 document.getElementById('tutorialBtn').addEventListener('click', startTutorial);
 
 renderAddStatusSeg();
+renderModeSelect();
+renderPrimaryLabel();
 renderMajorSelect();
+renderSecondarySelect();
+renderSecondaryVisibility();
 renderElaStreamSelect();
 renderCategoryFilter();
 renderPrefixFilter();
