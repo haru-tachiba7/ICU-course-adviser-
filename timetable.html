@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>時間割 — 履修台帳</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#EFEAE0;--panel:#E4DDCE;--panel-2:#DAD2BE;--ink:#1E2A33;--muted:#5C6B73;--gold:#8C6A1E;--rust:#9C4530;--border:#C9BFA9;--serif:'Lora',Georgia,'Noto Serif JP',serif;--sans:'Inter','Hiragino Sans','Noto Sans JP',sans-serif;--mono:'IBM Plex Mono',Consolas,monospace}
+@media(prefers-color-scheme:dark){:root{--bg:#10191F;--panel:#16222A;--panel-2:#1C2A33;--ink:#EDE6D6;--muted:#8A97A0;--gold:#C9A227;--rust:#C1614A;--border:#2A3944}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
+header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:20px}
+h1{font:600 26px var(--serif);margin:0}h2{font:600 15px var(--serif);color:var(--muted);margin:0 0 10px}
+a{color:var(--gold)}button,select,input{font:inherit;font-size:13px;color:var(--ink);background:var(--panel);border:1px solid var(--border);border-radius:3px;padding:5px 10px}
+button{cursor:pointer}button:hover{border-color:var(--gold)}button.on,.tab.on{background:var(--gold);color:var(--bg);border-color:var(--gold)}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px}.tab{background:var(--bg)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.layout{display:grid;grid-template-columns:1fr 320px;gap:28px}@media(max-width:900px){.layout{grid-template-columns:1fr}}
+table{border-collapse:collapse;width:100%;table-layout:fixed}th{font-weight:500;font-size:12px;color:var(--muted);padding:4px;border-bottom:1px solid var(--ink)}
+td{border:1px solid var(--border);height:46px;padding:2px;font-size:11.5px;line-height:1.3;text-align:center;vertical-align:middle;overflow:hidden}
+td.h{width:62px;font:11px var(--mono);color:var(--muted);background:var(--panel)}tr.sup td{height:32px;font-size:10.5px}
+td.e{cursor:pointer}td.e:hover{background:var(--panel)}td.x{background:var(--panel-2);color:var(--muted)}td.blk{background:repeating-linear-gradient(45deg,var(--panel),var(--panel) 4px,var(--panel-2) 4px,var(--panel-2) 8px);color:var(--muted)}
+td.ela{background:var(--ink);color:var(--bg)}td.c{cursor:pointer;background:var(--gold);color:var(--bg)}td.c.p{background:var(--panel);color:var(--ink);outline:2px dashed var(--gold);outline-offset:-3px}td.c.s{opacity:.6}
+.box{padding:10px 12px;background:var(--panel);border:1px solid var(--border);margin-bottom:14px;font-size:12.5px}.warn{color:var(--rust);font-weight:500}.mu{color:var(--muted);font-size:12px}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--border)}.row:first-of-type{border-top:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><div><h1>時間割</h1><div class="mu">履修リストの科目を時限に置いて、衝突や単位上限を確認する</div></div><a href="index.html">← 卒業要件の確認へ</a></header>
+<div class="tabs" id="tabs"></div>
+<div class="bar" id="bar"></div>
+<div class="layout">
+<div><table id="grid"></table><p class="mu" id="note"></p></div>
+<div><div class="box" id="cred"></div><div class="box" id="side"><span class="mu">空いている時限をクリックすると、その時限に開講される科目を探せます。</span></div></div>
+</div>
+</div>
+<script src="data.js"></script>
+<script>
+const TTK='icu_planner_timetables_v1',ENK='icu_planner_enrollments_v1',CURK='icu_planner_tt_cur_v1';
+const DAYS=['M','TU','W','TH','F','SA'],DL=['月','火','水','木','金','土'],SUPD=['M','W','TH','F'];
+const ROWS=['1','2','3','4','*4','5','*5','6','7','*7'];
+// 時限の開始・終了(分)。スーパー時限は公式の時限表に基づく
+const TM={'1':[525,600],'2':[610,685],'3':[695,770],'4':[840,915],'*4':[800,915],'5':[925,1000],'*5':[925,1040],'6':[1010,1085],'7':[1095,1170],'*7':[1095,1210]};
+const ST=['履修済','履修中','予定','検討中'],$=i=>document.getElementById(i);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
+const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const CM=Object.fromEntries(COURSES.map(c=>[c.course_no,c]));
+const mk=n=>({id:'t'+Date.now()+n,name:'時間割'+n,year:2026,term:'春',ela:[],pl:[]});
+let tts=ld(TTK,[]),cur=+ld(CURK,0)||0,enr=ld(ENK,[]),mode='',menu=null,look=null;
+if(!tts.length)tts.push(mk(1));
+const tt=()=>tts[Math.min(cur,tts.length-1)];
+const sp=s=>{const m=/^(\*?\d)\/([A-Z]+)$/.exec(String(s).trim());return m&&{p:m[1],d:m[2]}};
+const ov=(a,b)=>a.d===b.d&&TM[a.p][0]<TM[b.p][1]&&TM[b.p][0]<TM[a.p][1];
+const slotsOf=o=>(o.schedule||'').split(',').map(sp).filter(Boolean);
+const off=(c,t)=>c.offerings.find(o=>o.term===t.term&&+o.year===t.year)||c.offerings.find(o=>o.term===t.term);
+const cr=r=>{const s=String(r);let m=s.match(/^(\d+(?:\.\d+)?)\s*\/\s*\(/);if(m)return+m[1];m=s.match(/\((\d+(?:\.\d+)?)\)/);if(m)return+m[1];m=s.match(/^(\d+)\s*\/\s*(\d+)$/);if(m)return m[1]/m[2];return parseFloat(s.replace(/[^\d.]/g,''))||0};
+const fmt=n=>String(Math.round(n*100)/100);
+function save(){sv(TTK,tts);sv(CURK,cur);sv(ENK,enr)}
+function occ(t){const a=[];t.ela.forEach(k=>a.push({c:'ELA',s:[sp(k)]}));t.pl.forEach(p=>{const c=CM[p.cno],o=c&&off(c,t);if(o)a.push({c:p.cno,s:slotsOf(o)})});return a}
+const conf=(t,s,skip)=>occ(t).filter(x=>x.c!==skip&&x.s.some(a=>s.some(b=>ov(a,b))));
+function catId(c){const f={'英語(ELA)':'ela','日本語(JLP)':'jlp','一般教育':'ge','保健体育':'hpe'}[c.fixed_category];if(f)return f;if(c.level==null)return'elective';const m=localStorage.getItem('icu_planner_major_v1')||'ISC';return c.level===1?'foundation':(c.prefix===m?'major':'elective')}
+function setSt(cno,st){const e=enr.find(x=>x.course_no===cno);if(e)e.status=st;else{const c=CM[cno];enr.push({id:'e_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),course_no:cno,title_ja:c.title_ja,credit:c.credit,category_id:catId(c),status:st,term_label:''})}}
+// 科目を置く。衝突したら、どちらを残すか尋ねる
+function place(t,c,st){const o=off(c,t);if(!o)return false;const s=slotsOf(o);
+  if(!s.length){alert('この科目は時限が未定のため、時間割に置けません。');return false}
+  const cf=conf(t,s,c.course_no);
+  if(cf.some(x=>x.c==='ELA'))return false;
+  for(const x of cf){const oc=CM[x.c];
+    if(!confirm(`「${c.title_ja}」は「${oc.title_ja}」と時限が重なります。\nOK: 「${c.title_ja}」を置く(「${oc.title_ja}」は検討中に戻す)\nキャンセル: 「${oc.title_ja}」を残す`))return false;
+    t.pl=t.pl.filter(p=>p.cno!==x.c);setSt(x.c,'検討中')}
+  t.pl=t.pl.filter(p=>p.cno!==c.course_no);t.pl.push({cno:c.course_no,st});
+  if(st!=='tent')setSt(c.course_no,st);return true}
+// 検討中・予定の科目を仮配置する(開講学期が少ない科目・予定を優先)
+function recommend(){const t=tt(),placed=new Set(t.pl.map(p=>p.cno));let n=0,skip=0;
+  const cs=enr.filter(e=>(e.status==='予定'||e.status==='検討中')&&!placed.has(e.course_no)&&CM[e.course_no]&&CM[e.course_no].offerings.some(o=>o.term===t.term))
+   .sort((a,b)=>CM[a.course_no].offerings.length-CM[b.course_no].offerings.length||(a.status==='予定'?0:1)-(b.status==='予定'?0:1));
+  cs.forEach(e=>{place(t,CM[e.course_no],'tent')?n++:skip++});
+  save();render();alert(`${n}件を仮配置しました。${skip?skip+'件は時限の未定・衝突などで置けませんでした。':''}`)}
+// 学期ごとの単位上限(ELA以外の科目。1年次のELA履修者は学期・ストリームで異なる)
+function limit(t){const m=/^stream(\d)$/.exec(localStorage.getItem('icu_planner_ela_stream_v1')||'');
+  if(t.year===2026&&m){const n=+m[1],v={1:{'春':31/3},2:{'春':31/3,'秋':31/3},3:{'春':22/3,'秋':22/3,'冬':22/3},4:{'春':19/3,'秋':19/3,'冬':19/3}}[n][t.term];if(v)return v}return 17}
+function render(){const t=tt();
+  $('tabs').innerHTML=tts.map((x,i)=>`<button class="tab${i===cur?' on':''}" data-t="${i}">${esc(x.name)}</button>`).join('')+'<button id="add">＋ 新しい時間割</button>';
+  $('bar').innerHTML=`<input id="nm" value="${esc(t.name)}" style="width:130px"><select id="yr">${[2026,2027,2028,2029].map(y=>`<option${y===t.year?' selected':''}>${y}</option>`).join('')}</select>年度<select id="tm">${['春','秋','冬'].map(x=>`<option${x===t.term?' selected':''}>${x}</option>`).join('')}</select>学期
+   <button id="ela" class="${mode==='ela'?'on':''}">ELA枠を入力</button><button id="rec">検討中・予定から仮配置</button><button id="del">この時間割を削除</button>`;
+  const o=occ(t);let h='<tr><th></th>'+DL.map(d=>`<th>${d}</th>`).join('')+'</tr>';
+  ROWS.forEach(r=>{const sup=r[0]==='*';h+=`<tr class="${sup?'sup':''}"><td class="h">${sup?'スーパー'+r[1]:r+'限'}</td>`;
+    DAYS.forEach(d=>{const k=r+'/'+d;if(sup&&!SUPD.includes(d)){h+='<td class="x"></td>';return}
+      const me=o.find(x=>x.s.some(a=>a.p===r&&a.d===d));
+      if(me){if(me.c==='ELA')h+=`<td class="ela e" data-k="${k}">ELA</td>`;else{const p=t.pl.find(p=>p.cno===me.c);h+=`<td class="c ${p.st==='tent'?'p':p.st==='履修済'?'':'s'}" data-c="${me.c}" title="${esc(CM[me.c].title_ja)}">${esc(CM[me.c].title_ja.slice(0,14))}</td>`}return}
+      const b=o.some(x=>x.s.some(a=>ov(a,{p:r,d})));h+=b?'<td class="blk">重複</td>':`<td class="e" data-k="${k}"></td>`});h+='</tr>'});
+  $('grid').innerHTML=h;
+  $('note').textContent=(t.year!==2026?'※2027年度以降は開講データがないため、2026年度の開講を参考に表示しています。':'')+'破線=仮配置(クリックで状態を選択)、濃い金=履修済、薄い金=履修中・予定・検討中、斜線=スーパー時限との時間重複。';
+  const used=t.pl.filter(p=>CM[p.cno]&&CM[p.cno].prefix!=='ELA').reduce((s,p)=>s+cr(CM[p.cno].credit),0),lim=limit(t);
+  $('cred').innerHTML=`<h2>この学期の単位数(ELA科目を除く)</h2><b style="font:500 18px var(--mono)">${fmt(used)}</b> / 上限 ${fmt(lim)} 単位<div class="mu">標準は13単位(体育実技を履修する場合は13+1/3)。1年次ELA履修者は、ストリームによって上限が下がります。</div>${used>lim+1e-9?`<div class="warn">上限を ${fmt(used-lim)} 単位超えています。履修登録できません(17単位超は別途申請が必要)。</div>`:''}`;
+  if(menu){const p=t.pl.find(p=>p.cno===menu),c=CM[menu];$('side').innerHTML=p?`<h2>${esc(c.title_ja)}</h2><div class="mu">${c.course_no} / ${p.st==='tent'?'仮配置':'現在: '+p.st}</div><div class="bar" style="margin:8px 0 0">${ST.map(s=>`<button data-s="${s}">${s}</button>`).join('')}<button data-s="rm">時間割から外す</button></div>`:''}
+  else if(look)lookup(look);
+  else $('side').innerHTML='<span class="mu">空いている時限をクリックすると、その時限に開講される科目を探せます。</span>';
+  save()}
+function lookup(k){const t=tt(),s=sp(k),placed=new Set(t.pl.map(p=>p.cno));
+  const rs=COURSES.filter(c=>{if(placed.has(c.course_no)||c.prefix==='ELA')return false;const e=enr.find(e=>e.course_no===c.course_no);if(e&&e.status==='履修済')return false;
+    const o=off(c,t);if(!o)return false;const ss=slotsOf(o);return ss.some(a=>a.p===s.p&&a.d===s.d)&&!conf(t,ss,c.course_no).length}).slice(0,40);
+  $('side').innerHTML=`<h2>${DL[DAYS.indexOf(s.d)]}曜 ${s.p[0]==='*'?'スーパー'+s.p[1]:s.p+'限'} に開講(${rs.length>=40?'先頭40件':rs.length+'件'})</h2>`+(rs.map(c=>`<div class="row"><span>${esc(c.title_ja)}<br><span class="mu">${c.course_no} / ${fmt(cr(c.credit))}単位</span></span><button data-add="${c.course_no}">＋</button></div>`).join('')||'<span class="mu">置ける科目がありません。</span>')}
+document.addEventListener('click',ev=>{const t=tt(),g=s=>ev.target.closest(s);let b;
+  if(b=g('[data-t]')){cur=+b.dataset.t;menu=look=null}
+  else if(g('#add')){tts.push(mk(tts.length+1));cur=tts.length-1;menu=look=null}
+  else if(g('#ela'))mode=mode==='ela'?'':'ela';
+  else if(g('#rec')){recommend();return}
+  else if(g('#del')){if(tts.length<2||!confirm('この時間割を削除しますか?'))return;tts.splice(cur,1);cur=0;menu=look=null}
+  else if(b=g('[data-add]')){if(place(t,CM[b.dataset.add],'予定')){look=null}}
+  else if(b=g('[data-s]')){const p=t.pl.find(p=>p.cno===menu);if(b.dataset.s==='rm')t.pl=t.pl.filter(x=>x.cno!==menu);else{p.st=b.dataset.s;setSt(menu,p.st)}menu=null}
+  else if(b=g('td[data-c]')){menu=b.dataset.c;look=null}
+  else if(b=g('td[data-k]')){const k=b.dataset.k;if(mode==='ela'){const i=t.ela.indexOf(k);if(i>=0)t.ela.splice(i,1);else if(!conf(t,[sp(k)]).length)t.ela.push(k)}else if(!b.classList.contains('ela')){look=k;menu=null}}
+  else return;render()});
+document.addEventListener('change',ev=>{const t=tt();if(ev.target.id==='nm')t.name=ev.target.value||t.name;if(ev.target.id==='yr')t.year=+ev.target.value;if(ev.target.id==='tm')t.term=ev.target.value;menu=look=null;render()});
+render();
+</script>
+</body>
+</html>
