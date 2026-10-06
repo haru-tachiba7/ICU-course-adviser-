@@ -693,16 +693,24 @@ function rebuildCategories() {
 }
 rebuildCategories();
 
-// ELAストリーム選択時(または履修形態の変更時)に、英語(ELA)・選択科目の必要単位を
-// 公式資料の数値に合わせて自動設定する。手動で数字をクリックして編集した場合も
-// 同じ仕組み(categoryOverrides)を使うため、動作は共通。
+// 語学トラック(ELAストリーム or JLP配置レベル)を探す
+function findLanguageTrack(id) {
+  const all = (typeof ELA_STREAMS !== 'undefined' ? ELA_STREAMS : [])
+    .concat(typeof JLP_LEVELS !== 'undefined' ? JLP_LEVELS : []);
+  return all.find(s => s.id === id);
+}
+
+// 語学トラック選択時(または履修形態の変更時)に、英語(ELA)・日本語(JLP)・一般教育・
+// 選択科目の必要単位を公式資料の数値に合わせて自動設定する。
+// 手動で数字をクリックして編集した場合も同じ仕組み(categoryOverrides)を使うため、動作は共通。
 function applyStreamOverride() {
-  const stream = (typeof ELA_STREAMS !== 'undefined' ? ELA_STREAMS : []).find(s => s.id === currentElaStream);
-  if (!stream) return;
-  setOverride('ela', stream.ela_credits, catById['ela'] ? catById['ela'].required_credits : 0);
-  const electiveVal = stream.elective_credits[currentMode];
-  const electiveDefault = catById['elective'] ? catById['elective'].required_credits : 0;
-  setOverride('elective', electiveVal, electiveDefault);
+  const t = findLanguageTrack(currentElaStream);
+  if (!t) return;
+  const set = (id, val) => setOverride(id, val, catById[id] ? catById[id].required_credits : 0);
+  set('ela', t.ela_credits || 0);
+  set('jlp', t.jlp_credits || 0);
+  set('ge', t.ge_credits != null ? t.ge_credits : 18);
+  set('elective', t.elective_credits[currentMode]);
   saveOverrides(categoryOverrides);
 }
 
@@ -821,9 +829,11 @@ function renderSecondarySelect() {
 function renderElaStreamSelect() {
   const sel = document.getElementById('elaStreamSelect');
   if (typeof ELA_STREAMS === 'undefined') return;
-  const options = ['<option value="">(手動設定)</option>']
-    .concat(ELA_STREAMS.map(s => `<option value="${s.id}" ${s.id===currentElaStream?'selected':''}>${s.label}</option>`));
-  sel.innerHTML = options.join('');
+  const opt = s => `<option value="${s.id}" ${s.id===currentElaStream?'selected':''}>${s.label}</option>`;
+  const jlp = (typeof JLP_LEVELS !== 'undefined') ? JLP_LEVELS : [];
+  sel.innerHTML = '<option value="">(手動設定)</option>'
+    + '<optgroup label="ELA">' + ELA_STREAMS.map(opt).join('') + '</optgroup>'
+    + (jlp.length ? '<optgroup label="JLP">' + jlp.map(opt).join('') + '</optgroup>' : '');
   sel.addEventListener('change', () => {
     currentElaStream = sel.value;
     saveElaStream(currentElaStream);
@@ -1187,7 +1197,7 @@ const TUTORIAL_STEPS = [
   {
     selector: '.major-select',
     title: 'まずはあなたの情報を設定',
-    body: 'まず「履修形態」(メジャーのみ/ダブルメジャー/メジャー・マイナー)を選び、続けてメジャー(・第二メジャーやマイナー)、語学トラック(ELA)を選んでください。選ぶとすぐに、右側の卒業要件の必要単位に反映されます。'
+    body: 'まず「履修形態」(メジャーのみ/ダブルメジャー/メジャー・マイナー)を選び、続けてメジャー(・第二メジャーやマイナー)、語学トラック(ELA/JLP)を選んでください。選ぶとすぐに、右側の卒業要件の必要単位に反映されます。'
   },
   {
     selector: '.ledger',
