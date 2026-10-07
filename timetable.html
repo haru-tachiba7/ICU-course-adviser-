@@ -21,14 +21,14 @@ table{border-collapse:collapse;width:100%;table-layout:fixed}th{font-weight:500;
 td{border:1px solid var(--border);height:46px;padding:2px;font-size:11.5px;line-height:1.3;text-align:center;vertical-align:middle;overflow:hidden}
 td.h{width:62px;font:11px var(--mono);color:var(--muted);background:var(--panel)}tr.sup td{height:32px;font-size:10.5px}
 td.e{cursor:pointer}td.e:hover{background:var(--panel)}td.x{background:var(--panel-2);color:var(--muted)}td.blk{background:repeating-linear-gradient(45deg,var(--panel),var(--panel) 4px,var(--panel-2) 4px,var(--panel-2) 8px);color:var(--muted)}
-td.ela{background:var(--ink);color:var(--bg)}td.c{cursor:pointer;background:var(--gold);color:var(--bg)}td.c.p{background:var(--panel);color:var(--ink);outline:2px dashed var(--gold);outline-offset:-3px}td.c.s{opacity:.6}
+td.ela{background:#4A2F1E;color:#F3E9DC}td.dup{background:var(--rust);color:#fff;font-weight:500}td.c{cursor:pointer;background:var(--gold);color:var(--bg)}td.c.p{background:var(--panel);color:var(--ink);outline:2px dashed var(--gold);outline-offset:-3px}td.c.s{opacity:.6}
 .box{padding:10px 12px;background:var(--panel);border:1px solid var(--border);margin-bottom:14px;font-size:12.5px}.warn{color:var(--rust);font-weight:500}.mu{color:var(--muted);font-size:12px}
 .row{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--border)}.row:first-of-type{border-top:0}
 </style>
 </head>
 <body>
 <div class="wrap">
-<header><div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap"><h1>履修台帳</h1><a href="index.html" class="nv">卒業要件</a><a class="nv on">時間割</a></div><label class="mu">学籍番号(入学クラス) <select id="idsel"></select></label></header>
+<header><div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap"><h1>履修台帳</h1><a href="index.html" class="nv">卒業要件</a><a class="nv on">時間割</a></div></header>
 <div class="tabs" id="tabs"></div>
 <div class="bar" id="bar"></div>
 <div class="layout">
@@ -40,7 +40,9 @@ td.ela{background:var(--ink);color:var(--bg)}td.c{cursor:pointer;background:var(
 <script>
 const TTK='icu_planner_timetables_v1',ENK='icu_planner_enrollments_v1',CURK='icu_planner_tt_cur_v1';
 const DAYS=['M','TU','W','TH','F','SA'],DL=['月','火','水','木','金','土'],SUPD=['M','W','TH','F'];
-const ROWS=['1','2','3','L','*4','4','5','*5','6','7','*7'];
+const ROWS=['1','2','3','L','4','5','6','7'];
+const PT={'1':['8:45','10:00'],'2':['10:10','11:25'],'3':['11:35','12:50'],L:['12:50','14:00'],'4':['14:00','15:15'],'5':['15:25','16:40'],'6':['16:50','18:05'],'7':['18:15','19:30']};
+const PC={'1':['8:45','9:50'],'2':['10:00','11:05'],'3':['11:15','12:20'],L:['12:20','14:40'],'4':['14:40','15:45'],'5':['15:55','17:00'],'6':['17:10','18:15'],'7':['18:25','19:30']};
 // 時限の開始・終了(分)。スーパー時限は公式の時限表に基づく
 const TM={'1':[525,600],'2':[610,685],'3':[695,770],'4':[840,915],'*4':[800,915],'5':[925,1000],'*5':[925,1040],'6':[1010,1085],'7':[1095,1170],'*7':[1095,1210]};
 const ST=['履修済','履修中','予定','検討中'],$=i=>document.getElementById(i);
@@ -48,17 +50,17 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const CM=Object.fromEntries(COURSES.map(c=>[c.course_no,c]));
-const mk=n=>({id:'t'+Date.now()+n,name:'時間割'+n,year:2026,term:'春',ela:[],em:{},pl:[]});
+const mk=n=>({id:'t'+Date.now()+n,name:'時間割'+n,year:new Date().getFullYear(),grade:1,term:'春',ela:[],em:{},pl:[]});
 let tts=ld(TTK,[]),cur=+ld(CURK,0)||0,enr=ld(ENK,[]),mode='',menu=null,look=null;
 if(!tts.length)tts.push(mk(1));
 const tt=()=>tts[Math.min(cur,tts.length-1)];
-let IDV=+localStorage.getItem('icu_planner_id_v1')||0,ENT=2000+(IDV||30)-4,Q='';
+let Q='';
 const sp=s=>{const m=/^(\*?\d)\/([A-Z]+)$/.exec(String(s).trim());return m&&{p:m[1],d:m[2]}};
 const ov=(a,b)=>a.d===b.d&&TM[a.p][0]<TM[b.p][1]&&TM[b.p][0]<TM[a.p][1];
 const slotsOf=o=>(o.schedule||'').split(',').map(sp).filter(Boolean);
 const off=(c,t)=>c.offerings.find(o=>o.term===t.term&&+o.year===t.year)||c.offerings.find(o=>o.term===t.term);
 const cr=r=>{const s=String(r);let m=s.match(/^(\d+(?:\.\d+)?)\s*\/\s*\(/);if(m)return+m[1];m=s.match(/\((\d+(?:\.\d+)?)\)/);if(m)return+m[1];m=s.match(/^(\d+)\s*\/\s*(\d+)$/);if(m)return m[1]/m[2];return parseFloat(s.replace(/[^\d.]/g,''))||0};
-const fmt=n=>String(Math.round(n*100)/100);
+const fmt=n=>{const a=Math.round(n*3);if(Math.abs(n*3-a)>1e-6)return String(Math.round(n*100)/100);const w=Math.floor(a/3),r=a%3;return r?(w?w+'+'+r+'/3':r+'/3'):String(w)};
 function save(){sv(TTK,tts);sv(CURK,cur);sv(ENK,enr)}
 function occ(t){const a=[];t.ela.forEach(k=>a.push({c:'ELA',s:[sp(k)]}));t.pl.forEach(p=>{const c=CM[p.cno],o=c&&off(c,t);if(o)a.push({c:p.cno,s:slotsOf(o)})});return a}
 const conf=(t,s,skip)=>occ(t).filter(x=>x.c!==skip&&x.s.some(a=>s.some(b=>ov(a,b))));
@@ -70,8 +72,8 @@ function place(t,c,st){const o=off(c,t);if(!o)return false;const s=slotsOf(o);
   const cf=conf(t,s,c.course_no);
   if(cf.some(x=>x.c==='ELA'))return false;
   for(const x of cf){const oc=CM[x.c];
-    if(!confirm(`「${c.title_ja}」は「${oc.title_ja}」と時限が重なります。\nOK: 「${c.title_ja}」を置く(「${oc.title_ja}」は検討中に戻す)\nキャンセル: 「${oc.title_ja}」を残す`))return false;
-    t.pl=t.pl.filter(p=>p.cno!==x.c);setSt(x.c,'検討中')}
+    if(confirm(`「${c.title_ja}」は「${oc.title_ja}」と時限が重なります。\nOK: 「${c.title_ja}」を置く(「${oc.title_ja}」は検討中に戻す)\nキャンセル: 次へ`)){t.pl=t.pl.filter(p=>p.cno!==x.c);setSt(x.c,'検討中')}
+    else if(!confirm(`重複したまま両方置きますか?(重複コマはハイライトされます)\nキャンセル: 「${c.title_ja}」を置かない`))return false}
   t.pl=t.pl.filter(p=>p.cno!==c.course_no);t.pl.push({cno:c.course_no,st});
   if(st!=='tent')setSt(c.course_no,st);return true}
 // 検討中・予定の科目を仮配置する(開講学期が少ない科目・予定を優先)
@@ -81,29 +83,28 @@ function recommend(){const t=tt(),placed=new Set(t.pl.map(p=>p.cno));let n=0,ski
   cs.forEach(e=>{place(t,CM[e.course_no],'tent')?n++:skip++});
   save();render();alert(`${n}件を仮配置しました。${skip?skip+'件は時限の未定・衝突などで置けませんでした。':''}`)}
 // 学期ごとの単位上限(ELA以外の科目。1年次のELA履修者は学期・ストリームで異なる)
-function limit(t,a){if(!a&&t.cap>0)return t.cap;const m=/^stream(\d)$/.exec(localStorage.getItem('icu_planner_ela_stream_v1')||'');
-  if(t.year===ENT&&m){const n=+m[1],v={1:{'春':31/3},2:{'春':31/3,'秋':31/3},3:{'春':22/3,'秋':22/3,'冬':22/3},4:{'春':19/3,'秋':19/3,'冬':19/3}}[n][t.term];if(v)return v}return 17}
+function limit(t,a){if(!a&&t.cap>0)return t.cap+(t.cap3?1/3:0);const m=/^stream(\d)$/.exec(localStorage.getItem('icu_planner_ela_stream_v1')||'');
+  if((t.grade||1)===1&&m){const n=+m[1],v={1:{'春':31/3},2:{'春':31/3,'秋':31/3},3:{'春':22/3,'秋':22/3,'冬':22/3},4:{'春':19/3,'秋':19/3,'冬':19/3}}[n][t.term];if(v)return v}return 17}
 const search=q=>{const t=tt(),u=q.trim().toUpperCase();return u?COURSES.filter(c=>c.prefix!=='ELA'&&(c.course_no.toUpperCase().includes(u)||c.title_ja.includes(q.trim()))&&off(c,t)).slice(0,30):[]};
 function resRows(l){const t=tt();return l.map(c=>{const e=enr.find(e=>e.course_no===c.course_no),on=t.pl.some(p=>p.cno===c.course_no);return`<div class="row"><span>${esc(c.title_ja)}<br><span class="mu">${c.course_no} / ${fmt(cr(c.credit))}単位${e?' / '+e.status:''}</span></span><span><button data-sst="予定" data-c2="${c.course_no}">予定</button> <button data-sst="検討中" data-c2="${c.course_no}">検討中</button> ${on?'<span class="mu">配置済</span>':`<button data-add="${c.course_no}">時間割へ追加</button>`}</span></div>`}).join('')||'<span class="mu">該当する科目がありません。</span>'}
 function listHtml(t){const l=enr.filter(e=>(e.status==='予定'||e.status==='検討中')&&CM[e.course_no]&&off(CM[e.course_no],t));
   return'<h2>この学期に開講される予定・検討中の授業</h2><button id="rec">一括仮配置</button>'+(l.map(e=>{const c=CM[e.course_no],on=t.pl.some(p=>p.cno===e.course_no);return`<div class="row"><span>${esc(c.title_ja)}<br><span class="mu">${e.status} / ${fmt(cr(c.credit))}単位</span></span>${on?'<span class="mu">配置済</span>':`<button data-add="${e.course_no}">時間割へ追加</button>`}</div>`}).join('')||'<div class="mu" style="margin-top:8px">該当する授業はありません。</div>')}
-function render(){const t=tt();t.em=t.em||{};
-  $('idsel').innerHTML='<option value="">選択</option>'+[30,29,28,27,26,25,24,23].map(i=>`<option${i===IDV?' selected':''}>${i}</option>`).join('');
-  if(!IDV){['tabs','bar','cred','list','side'].forEach(x=>$(x).innerHTML='');$('grid').innerHTML='<tr><td style="height:70px">まず右上の「学籍番号」を選んでください(30=2026年度入学、29=2025年度入学…)。</td></tr>';return}
+function render(){const t=tt();t.em=t.em||{};const cy=new Date().getFullYear(),PX=t.term==='春'&&t.cw?PC:PT,dys=t.nosat?DAYS.slice(0,5):DAYS,gr=t.grade||1;
   $('tabs').innerHTML=tts.map((x,i)=>`<button class="tab${i===cur?' on':''}" data-t="${i}">${esc(x.name)}</button>`).join('')+'<button id="add" title="時間割を追加">＋</button>';
-  $('bar').innerHTML=`<input id="nm" value="${esc(t.name)}" style="width:130px"><select id="yr">${[0,1,2,3].map(i=>ENT+i).map(y=>`<option${y===t.year?' selected':''}>${y}</option>`).join('')}</select>年度<select id="tm">${['春','秋','冬'].map(x=>`<option${x===t.term?' selected':''}>${x}</option>`).join('')}</select>学期
-   <button id="ela" class="${mode==='ela'?'on':''}">ELA枠を入力</button><button id="del" title="この時間割を削除">🗑</button>`;
-  const o=occ(t);let h='<tr><th></th>'+DL.map(d=>`<th>${d}</th>`).join('')+'</tr>';
-  ROWS.forEach(r=>{if(r==='L'){h+='<tr class="lun"><td class="h">昼休み</td><td class="x" colspan="6" style="height:24px">12:50-14:00(スーパー4限は13:20から食い込みます)</td></tr>';return}
-    const sup=r[0]==='*';h+=`<tr class="${sup?'sup':''}${r==='*4'?' lun':''}"><td class="h">${sup?'スーパー'+r[1]:r+'限'}</td>`;
-    DAYS.forEach(d=>{const k=r+'/'+d;if(sup&&!SUPD.includes(d)){h+='<td class="x"></td>';return}
-      const me=o.find(x=>x.s.some(a=>a.p===r&&a.d===d));
-      if(me){if(me.c==='ELA'){const m=t.em[k]&&CM[t.em[k]];h+=`<td class="ela e" data-k="${k}">ELA${m?'<br>'+esc(m.title_ja.split('：').pop().slice(0,10)):''}</td>`}else{const p=t.pl.find(p=>p.cno===me.c);h+=`<td class="c ${p.st==='tent'?'p':p.st==='履修済'?'':'s'}" data-c="${me.c}" title="${esc(CM[me.c].title_ja)}">${esc(CM[me.c].title_ja.slice(0,14))}</td>`}return}
+  $('bar').innerHTML=`<input id="nm" value="${esc(t.name)}" style="width:130px"><select id="yr">${Array.from({length:13},(_,i)=>cy-6+i).map(y=>`<option${y===t.year?' selected':''}>${y}</option>`).join('')}</select>年度<select id="gr">${[1,2,3,4].map(g=>`<option${g===gr?' selected':''}>${g}</option>`).join('')}</select>年次<select id="tm">${['春','秋','冬'].map(x=>`<option${x===t.term?' selected':''}>${x}</option>`).join('')}</select>学期
+   <button id="ela" class="${mode==='ela'?'on':''}">ELA枠を入力</button>${t.term==='春'?`<button id="cw" class="${t.cw?'on':''}">C-week時間</button>`:''}<button id="sat">${t.nosat?'土曜を表示':'土曜を非表示'}</button><button id="del" title="この時間割を削除">🗑</button>`;
+  const o=occ(t);let h='<tr><th></th>'+dys.map(d=>`<th>${DL[DAYS.indexOf(d)]}</th>`).join('')+'</tr>';
+  ROWS.forEach(r=>{const tx=`${r==='L'?'昼休み':r+'限'}<br>${PX[r][0]}-${PX[r][1]}`;
+    if(r==='L'){h+=`<tr class="lun"><td class="h">${tx}</td><td class="x" colspan="${dys.length}" style="height:24px"></td></tr>`;return}
+    h+=`<tr><td class="h">${tx}</td>`;
+    dys.forEach(d=>{const k=r+'/'+d,me=o.filter(x=>x.s.some(a=>a.p.replace('*','')===r&&a.d===d));
+      if(me.length>1){h+='<td class="dup">'+me.map(x=>`<span data-c="${x.c}" style="display:block;cursor:pointer">${esc(CM[x.c].title_ja.slice(0,10))}</span>`).join('')+'</td>';return}
+      if(me.length){const x=me[0];if(x.c==='ELA'){const m=t.em[k]&&CM[t.em[k]];h+=`<td class="ela e" data-k="${k}">ELA${m?'<br>'+esc(m.title_ja.split('：').pop().slice(0,10)):''}</td>`}else{const p=t.pl.find(p=>p.cno===x.c),sup=x.s.some(a=>a.p[0]==='*'&&a.p.slice(1)===r&&a.d===d);h+=`<td class="c ${p.st==='tent'?'p':p.st==='履修済'?'':'s'}" data-c="${x.c}" title="${esc(CM[x.c].title_ja)}">${sup?'[S]':''}${esc(CM[x.c].title_ja.slice(0,14))}</td>`}return}
       h+=o.some(x=>x.s.some(a=>ov(a,{p:r,d})))?'<td class="blk">重複</td>':`<td class="e" data-k="${k}"></td>`});h+='</tr>'});
   $('grid').innerHTML=h;
-  $('note').textContent=(t.year!==2026?'※2027年度以降は開講データがないため、2026年度の開講を参考に表示しています。':'')+'破線=仮配置(クリックで状態を選択)、濃い金=履修済、薄い金=履修中・予定・検討中、斜線=スーパー時限との時間重複。ELA枠はクリックで授業を選べます。';
+  $('note').textContent=(t.year!==2026?'※2026年度以外は開講データがないため、2026年度の開講を参考に表示しています。':'')+'破線=仮配置(クリックで状態を選択)、濃い金=履修済、薄い金=履修中・予定・検討中、赤=時限が重複、斜線=スーパー時限と時間が重なるコマ。[S]=スーパー時限。';
   const used=t.pl.filter(p=>CM[p.cno]&&CM[p.cno].prefix!=='ELA').reduce((s,p)=>s+cr(CM[p.cno].credit),0),lim=limit(t);
-  $('cred').innerHTML=`<h2>この学期の単位数(ELA科目を除く)</h2><b style="font:500 18px var(--mono)">${fmt(used)}</b> / 上限 ${fmt(lim)} 単位<div class="mu" style="margin:6px 0">上限を自分で設定: <input id="cap" type="number" min="0" step="0.01" value="${t.cap||''}" placeholder="自動 ${fmt(limit(t,1))}" style="width:90px"></div><div class="mu">標準は13単位(体育実技を履修する場合は13+1/3)。空欄なら、公式の上限(1年次のELA履修者はストリームで異なる)を使います。</div>${used>lim+1e-9?`<div class="warn">上限を ${fmt(used-lim)} 単位超えています。</div>`:''}`;
+  $('cred').innerHTML=`<h2>この学期の単位数(ELA科目を除く)</h2><b style="font:500 18px var(--mono)">${fmt(used)}</b> / 上限 ${fmt(lim)} 単位<div class="mu" style="margin:6px 0">上限を自分で設定: <input id="cap" type="number" min="0" step="1" value="${t.cap||''}" placeholder="自動 ${fmt(limit(t,1))}" style="width:90px"> <label><input type="checkbox" id="c3"${t.cap3?' checked':''}> +1/3</label></div><div class="mu">標準は13単位(体育実技を履修する場合は+1/3)。空欄なら、選んだ年次の公式の上限(1年次のELA履修者はストリームで異なる)を使います。</div>${used>lim+1e-9?`<div class="warn">上限を ${fmt(used-lim)} 単位超えています。</div>`:''}`;
   if(menu&&menu[0]==='#'){const k=menu.slice(1),es=COURSES.filter(c=>c.prefix==='ELA'&&c.offerings.some(o=>o.term===t.term));
     $('side').innerHTML=`<h2>このELA枠(${k})の授業</h2>`+es.map(c=>`<div class="row"><span>${esc(c.title_ja)}</span><button data-em="${c.course_no}">選ぶ</button></div>`).join('')+'<div class="row"><span class="mu">未設定に戻す</span><button data-em="">解除</button></div>'}
   else if(menu){const p=t.pl.find(p=>p.cno===menu),c=CM[menu];$('side').innerHTML=p?`<h2>${esc(c.title_ja)}</h2><div class="mu">${c.course_no} / ${p.st==='tent'?'仮配置':'現在: '+p.st}</div><div class="bar" style="margin:8px 0 0">${ST.map(s=>`<button data-s="${s}">${s}</button>`).join('')}<button data-s="rm">時間割から外す</button></div>`:''}
@@ -117,18 +118,20 @@ document.addEventListener('click',ev=>{const t=tt(),g=q=>ev.target.closest(q);le
   if(b=g('[data-t]')){cur=+b.dataset.t;menu=look=null}
   else if(g('#add')){tts.push(mk(tts.length+1));cur=tts.length-1;menu=look=null}
   else if(g('#ela'))mode=mode==='ela'?'':'ela';
+  else if(g('#cw'))t.cw=!t.cw;
+  else if(g('#sat')){if(!t.nosat&&occ(t).some(x=>x.s.some(a=>a.d==='SA'))){alert('土曜に配置済みの科目があるため、非表示にできません。');return}t.nosat=!t.nosat}
   else if(g('#rec')){recommend();return}
   else if(g('#del')){if(tts.length<2||!confirm('この時間割を削除しますか?'))return;tts.splice(cur,1);cur=0;menu=look=null}
   else if(b=g('[data-add]')){const e=enr.find(e=>e.course_no===b.dataset.add);if(place(t,CM[b.dataset.add],e?e.status:'予定'))look=null}
   else if(b=g('[data-sst]'))setSt(b.dataset.c2,b.dataset.sst);
   else if(b=g('[data-em]')){const k=menu.slice(1);if(b.dataset.em)t.em[k]=b.dataset.em;else delete t.em[k];menu=null}
   else if(b=g('[data-s]')){const p=t.pl.find(p=>p.cno===menu);if(b.dataset.s==='rm')t.pl=t.pl.filter(x=>x.cno!==menu);else{p.st=b.dataset.s;setSt(menu,p.st)}menu=null}
-  else if(b=g('td[data-c]')){menu=b.dataset.c;look=null}
+  else if(b=g('[data-c]')){menu=b.dataset.c;look=null}
   else if(b=g('td[data-k]')){const k=b.dataset.k;if(mode==='ela'){const i=t.ela.indexOf(k);if(i>=0)t.ela.splice(i,1);else if(!conf(t,[sp(k)]).length)t.ela.push(k)}else if(b.classList.contains('ela')){menu='#'+k;look=null}else{look=k;menu=null}}
   else return;render()});
 document.addEventListener('change',ev=>{const t=tt(),i=ev.target.id;
-  if(i==='idsel'){IDV=+ev.target.value||0;try{localStorage.setItem('icu_planner_id_v1',IDV)}catch(e){}ENT=2000+(IDV||30)-4;tts.forEach(x=>{if(x.year<ENT||x.year>ENT+3)x.year=ENT});render();return}
-  if(i==='nm')t.name=ev.target.value||t.name;if(i==='yr')t.year=+ev.target.value;if(i==='tm')t.term=ev.target.value;if(i==='cap')t.cap=+ev.target.value||0;
+  if(i==='nm')t.name=ev.target.value||t.name;if(i==='yr')t.year=+ev.target.value;if(i==='gr')t.grade=+ev.target.value;if(i==='tm')t.term=ev.target.value;
+  if(i==='cap')t.cap=Math.max(0,parseInt(ev.target.value)||0);if(i==='c3')t.cap3=ev.target.checked;
   menu=look=null;render()});
 document.addEventListener('input',ev=>{if(ev.target.id==='q'){Q=ev.target.value;$('qr').innerHTML=Q?resRows(search(Q)):''}});
 render();
