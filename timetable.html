@@ -21,7 +21,7 @@ table{border-collapse:collapse;width:100%;table-layout:fixed}th{font-weight:500;
 td{border:1px solid var(--border);height:46px;padding:2px;font-size:11.5px;line-height:1.3;text-align:center;vertical-align:middle;overflow:hidden}
 td.h{width:62px;font:11px var(--mono);color:var(--muted);background:var(--panel)}tr.sup td{height:32px;font-size:10.5px}
 td.e{cursor:pointer}td.e:hover{background:var(--panel)}td.x{background:var(--panel-2);color:var(--muted)}td.blk{background:repeating-linear-gradient(45deg,var(--panel),var(--panel) 4px,var(--panel-2) 4px,var(--panel-2) 8px);color:var(--muted)}
-td.ela{background:#4A2F1E;color:#F3E9DC}td.dup{background:var(--rust);color:#fff;font-weight:500}td.c{cursor:pointer;background:var(--gold);color:var(--bg)}td.c.p{background:var(--panel);color:var(--ink);outline:2px dashed var(--gold);outline-offset:-3px}td.c.s{opacity:.6}
+td.ela{background:#4A2F1E;color:#F3E9DC}td.dup{background:var(--rust);color:#fff;font-weight:500}td.c{cursor:pointer}td.c.p{opacity:.5;outline:2px dashed var(--ink);outline-offset:-3px}td.c.s{opacity:.78}
 .box{padding:10px 12px;background:var(--panel);border:1px solid var(--border);margin-bottom:14px;font-size:12.5px}.warn{color:var(--rust);font-weight:500}.mu{color:var(--muted);font-size:12px}
 .row{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--border)}.row:first-of-type{border-top:0}
 </style>
@@ -32,7 +32,7 @@ td.ela{background:#4A2F1E;color:#F3E9DC}td.dup{background:var(--rust);color:#fff
 <div class="tabs" id="tabs"></div>
 <div class="bar" id="bar"></div>
 <div class="layout">
-<div><table id="grid"></table><p class="mu" id="note"></p></div>
+<div><table id="grid"></table><p class="mu" id="note"></p><div id="leg" class="mu" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:6px"></div></div>
 <div><div class="box" id="cred"></div><div class="box" id="side"></div><div class="box" id="list"></div></div>
 </div>
 </div>
@@ -40,6 +40,7 @@ td.ela{background:#4A2F1E;color:#F3E9DC}td.dup{background:var(--rust);color:#fff
 <script>
 const TTK='icu_planner_timetables_v1',ENK='icu_planner_enrollments_v1',CURK='icu_planner_tt_cur_v1';
 const DAYS=['M','TU','W','TH','F','SA'],DL=['月','火','水','木','金','土'],SUPD=['M','W','TH','F'];
+const ELAN=['ARW','RCA','AS','Tutorial','S&L','ATS','R&E','リサーチライティング'];
 const ROWS=['1','2','3','L','4','5','6','7'];
 const PT={'1':['8:45','10:00'],'2':['10:10','11:25'],'3':['11:35','12:50'],L:['12:50','14:00'],'4':['14:00','15:15'],'5':['15:25','16:40'],'6':['16:50','18:05'],'7':['18:15','19:30']};
 const PC={'1':['8:45','9:50'],'2':['10:00','11:05'],'3':['11:15','12:20'],L:['12:20','14:40'],'4':['14:40','15:45'],'5':['15:55','17:00'],'6':['17:10','18:15'],'7':['18:25','19:30']};
@@ -55,7 +56,11 @@ let tts=ld(TTK,[]),cur=+ld(CURK,0)||0,enr=ld(ENK,[]),mode='',menu=null,look=null
 if(!tts.length)tts.push(mk(1));
 const tt=()=>tts[Math.min(cur,tts.length-1)];
 let Q='';
-const sp=s=>{const m=/^(\*?\d)\/([A-Z]+)$/.exec(String(s).trim());return m&&{p:m[1],d:m[2]}};
+const COL=ld('icu_tt_colors_v1',{}),PFX=[...new Set(COURSES.map(c=>c.prefix))].sort();
+function hsl2hex(h,s,l){s/=100;l/=100;const a=s*Math.min(l,1-l),f=n=>{const k=(n+h/30)%12,c=l-a*Math.max(Math.min(k-3,9-k,1),-1);return Math.round(255*c).toString(16).padStart(2,'0')};return'#'+f(0)+f(8)+f(4)}
+const colr=p=>COL[p]||hsl2hex((PFX.indexOf(p)*137.508)%360,45,38);
+const tc=h=>{const v=[1,3,5].map(i=>parseInt(h.substr(i,2),16));return(v[0]*299+v[1]*587+v[2]*114)/1000>150?'#1E2A33':'#fff'};
+const sp=s=>{const m=/^(\*?\d)\/([A-Z]+)$/.exec(String(s).replace(/[()>]/g,'').trim());return m&&{p:m[1],d:m[2]}};
 const ov=(a,b)=>a.d===b.d&&TM[a.p][0]<TM[b.p][1]&&TM[b.p][0]<TM[a.p][1];
 const slotsOf=o=>(o.schedule||'').split(',').map(sp).filter(Boolean);
 const off=(c,t)=>c.offerings.find(o=>o.term===t.term&&+o.year===t.year)||c.offerings.find(o=>o.term===t.term);
@@ -99,14 +104,15 @@ function render(){const t=tt();t.em=t.em||{};const cy=new Date().getFullYear(),P
     h+=`<tr><td class="h">${tx}</td>`;
     dys.forEach(d=>{const k=r+'/'+d,me=o.filter(x=>x.s.some(a=>a.p.replace('*','')===r&&a.d===d));
       if(me.length>1){h+='<td class="dup">'+me.map(x=>`<span data-c="${x.c}" style="display:block;cursor:pointer">${esc(CM[x.c].title_ja.slice(0,10))}</span>`).join('')+'</td>';return}
-      if(me.length){const x=me[0];if(x.c==='ELA'){const m=t.em[k]&&CM[t.em[k]];h+=`<td class="ela e" data-k="${k}">ELA${m?'<br>'+esc(m.title_ja.split('：').pop().slice(0,10)):''}</td>`}else{const p=t.pl.find(p=>p.cno===x.c),sup=x.s.some(a=>a.p[0]==='*'&&a.p.slice(1)===r&&a.d===d);h+=`<td class="c ${p.st==='tent'?'p':p.st==='履修済'?'':'s'}" data-c="${x.c}" title="${esc(CM[x.c].title_ja)}">${sup?'[S]':''}${esc(CM[x.c].title_ja.slice(0,14))}</td>`}return}
+      if(me.length){const x=me[0];if(x.c==='ELA'){const m=t.em[k];h+=`<td class="ela e" data-k="${k}">ELA${m?'<br>'+esc(CM[m]?CM[m].title_ja.split('：').pop().slice(0,10):m):''}</td>`}else{const p=t.pl.find(p=>p.cno===x.c),sup=x.s.some(a=>a.p[0]==='*'&&a.p.slice(1)===r&&a.d===d);h+=`<td class="c ${p.st==='tent'?'p':p.st==='履修済'?'':'s'}" data-c="${x.c}" style="background:${colr(CM[x.c].prefix)};color:${tc(colr(CM[x.c].prefix))}" title="${esc(CM[x.c].title_ja)}">${sup?'[S]':''}${esc(CM[x.c].title_ja.slice(0,14))}</td>`}return}
       h+=o.some(x=>x.s.some(a=>ov(a,{p:r,d})))?'<td class="blk">重複</td>':`<td class="e" data-k="${k}"></td>`});h+='</tr>'});
   $('grid').innerHTML=h;
-  $('note').textContent=(t.year!==2026?'※2026年度以外は開講データがないため、2026年度の開講を参考に表示しています。':'')+'破線=仮配置(クリックで状態を選択)、濃い金=履修済、薄い金=履修中・予定・検討中、赤=時限が重複、斜線=スーパー時限と時間が重なるコマ。[S]=スーパー時限。';
+  $('leg').innerHTML=[...new Set(t.pl.map(p=>CM[p.cno]&&CM[p.cno].prefix).filter(Boolean))].sort().map(x=>`<label>${x} <input type="color" data-pc="${x}" value="${colr(x)}"></label>`).join('');
+  $('note').textContent=(t.year!==2026?'※2026年度以外は開講データがないため、2026年度の開講を参考に表示しています。':'')+'色=メジャーごと(下の欄で変更できます)、薄く破線=仮配置(クリックで状態を選択)、やや薄い=履修中・予定・検討中、赤=時限が重複、斜線=スーパー時限と時間が重なるコマ、[S]=スーパー時限。';
   const used=t.pl.filter(p=>CM[p.cno]&&CM[p.cno].prefix!=='ELA').reduce((s,p)=>s+cr(CM[p.cno].credit),0),lim=limit(t);
   $('cred').innerHTML=`<h2>この学期の単位数(ELA科目を除く)</h2><b style="font:500 18px var(--mono)">${fmt(used)}</b> / 上限 ${fmt(lim)} 単位<div class="mu" style="margin:6px 0">上限を自分で設定: <input id="cap" type="number" min="0" step="1" value="${t.cap||''}" placeholder="自動 ${fmt(limit(t,1))}" style="width:90px"> <label><input type="checkbox" id="c3"${t.cap3?' checked':''}> +1/3</label></div><div class="mu">標準は13単位(体育実技を履修する場合は+1/3)。空欄なら、選んだ年次の公式の上限(1年次のELA履修者はストリームで異なる)を使います。</div>${used>lim+1e-9?`<div class="warn">上限を ${fmt(used-lim)} 単位超えています。</div>`:''}`;
-  if(menu&&menu[0]==='#'){const k=menu.slice(1),es=COURSES.filter(c=>c.prefix==='ELA'&&c.offerings.some(o=>o.term===t.term));
-    $('side').innerHTML=`<h2>このELA枠(${k})の授業</h2>`+es.map(c=>`<div class="row"><span>${esc(c.title_ja)}</span><button data-em="${c.course_no}">選ぶ</button></div>`).join('')+'<div class="row"><span class="mu">未設定に戻す</span><button data-em="">解除</button></div>'}
+  if(menu&&menu[0]==='#'){const k=menu.slice(1),es=ELAN;
+    $('side').innerHTML=`<h2>このELA枠(${k})の授業</h2>`+es.map(c=>`<div class="row"><span>${esc(c)}</span><button data-em="${esc(c)}">選ぶ</button></div>`).join('')+'<div class="row"><span class="mu">未設定に戻す</span><button data-em="">解除</button></div>'}
   else if(menu){const p=t.pl.find(p=>p.cno===menu),c=CM[menu];$('side').innerHTML=p?`<h2>${esc(c.title_ja)}</h2><div class="mu">${c.course_no} / ${p.st==='tent'?'仮配置':'現在: '+p.st}</div><div class="bar" style="margin:8px 0 0">${ST.map(s=>`<button data-s="${s}">${s}</button>`).join('')}<button data-s="rm">時間割から外す</button></div>`:''}
   else if(look)lookup(look);
   else{$('side').innerHTML='<h2>授業を探す</h2><input id="q" placeholder="科目名・科目番号(この学期の開講)" style="width:100%" value="'+esc(Q)+'"><div id="qr">'+(Q?resRows(search(Q)):'')+'</div><div class="mu" style="margin-top:6px">空いている時限をクリックして、その時限の授業を探すこともできます。</div>'}
@@ -130,6 +136,7 @@ document.addEventListener('click',ev=>{const t=tt(),g=q=>ev.target.closest(q);le
   else if(b=g('td[data-k]')){const k=b.dataset.k;if(mode==='ela'){const i=t.ela.indexOf(k);if(i>=0)t.ela.splice(i,1);else if(!conf(t,[sp(k)]).length)t.ela.push(k)}else if(b.classList.contains('ela')){menu='#'+k;look=null}else{look=k;menu=null}}
   else return;render()});
 document.addEventListener('change',ev=>{const t=tt(),i=ev.target.id;
+  if(ev.target.dataset.pc){COL[ev.target.dataset.pc]=ev.target.value;sv('icu_tt_colors_v1',COL);render();return}
   if(i==='nm')t.name=ev.target.value||t.name;if(i==='yr')t.year=+ev.target.value;if(i==='gr')t.grade=+ev.target.value;if(i==='tm')t.term=ev.target.value;
   if(i==='cap')t.cap=Math.max(0,parseInt(ev.target.value)||0);if(i==='c3')t.cap3=ev.target.checked;
   menu=look=null;render()});
