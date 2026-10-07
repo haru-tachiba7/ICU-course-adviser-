@@ -730,7 +730,10 @@ function parseCredit(raw) {
 }
 // 合計表示用: 0.333...を3つ足して0.9999...になるような誤差を丸める
 function fmtNum(n) {
-  return String(Math.round(n * 100) / 100);
+  const a = Math.round(n * 3);
+  if (Math.abs(n * 3 - a) > 1e-6) return String(Math.round(n * 100) / 100);
+  const w = Math.floor(a / 3), r = a % 3;
+  return r ? (w ? w + '+' + r + '/3' : r + '/3') : String(w);
 }
 // 科目一覧などでの単位の表示用
 function displayCredit(raw) {
