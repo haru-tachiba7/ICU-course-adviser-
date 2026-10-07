@@ -314,6 +314,9 @@
     border-bottom: 1px dotted var(--ink-muted);
   }
   .title-btn:hover { color: var(--gold); border-color: var(--gold); }
+  .e-detail { background: var(--panel); padding: 12px 10px 14px; font-size: 12.5px; border-bottom: 1px solid var(--border); }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--gold); }
   .detail-row td {
     background: var(--panel);
     padding: 12px 10px 14px;
@@ -531,8 +534,8 @@
             <tr>
               <th style="width:90px">科目番号</th>
               <th>科目タイトル</th>
-              <th style="width:60px">単位</th>
-              <th style="width:110px">開講学期</th>
+              <th style="width:60px" class="sortable" data-sort="credit">単位<span class="sort-ind"></span></th>
+              <th style="width:110px" class="sortable" data-sort="term">開講学期<span class="sort-ind"></span></th>
               <th style="width:90px">区分</th>
               <th style="width:96px"></th>
             </tr>
@@ -644,6 +647,9 @@ function saveAddStatus(v) {
   try { localStorage.setItem(ADD_STATUS_KEY, v); } catch (e) {}
 }
 let addStatus = loadAddStatus();
+let sortKey = '', sortDir = 1; // 科目一覧の並べ替え(単位・開講学期)
+const TERM_ORDER = { '春': 0, '秋': 1, '冬': 2 };
+let expandedEnr = null; // 履修リストで詳細を開いている科目
 let expandedCno = null; // 科目タイトルをクリックして詳細を開いている科目(1件のみ)
 
 const majorByPrefix = Object.fromEntries((typeof MAJORS !== 'undefined' ? MAJORS : []).map(m => [m.prefix, m]));
@@ -941,12 +947,12 @@ function renderLedger() {
 
   const rows = document.getElementById('catRows');
   rows.innerHTML = '';
-  let totalReq = 0, totalDone = 0;
+  let totalReq = 0, totalDone = 0, totalPlan = 0;
   ACTIVE_CATEGORIES.forEach(c => {
     const req = requiredFor(c);
     totalReq += req;
     const e = earned[c.id], p = planned[c.id];
-    totalDone += e;
+    totalDone += e; totalPlan += p;
     const safeReq = req > 0 ? req : 1;
     const pctE = Math.min(100, (e / safeReq) * 100);
     const pctP = Math.min(100 - pctE, (p / safeReq) * 100);
@@ -966,7 +972,7 @@ function renderLedger() {
       </div>`;
     rows.appendChild(row);
   });
-  document.getElementById('totalValue').innerHTML = `<b>${fmtNum(totalDone)}</b> / ${totalReq} 単位取得済`;
+  document.getElementById('totalValue').innerHTML = `<div style="text-align:right"><div>取得済 <b>${fmtNum(totalDone)}</b> / ${totalReq} 単位</div><div style="font-size:13px">取得予定 <b style="font-size:16px">${fmtNum(totalPlan)}</b> 単位(履修中・予定など)</div><div style="font-size:12px;color:var(--ink-muted)">合計 ${fmtNum(totalDone + totalPlan)} / ${totalReq}</div></div>`;
   renderCapRules();
 
   rows.querySelectorAll('.req-edit').forEach(el => {
@@ -1013,6 +1019,16 @@ function renderCourseTable() {
     return true;
   });
 
+  if (sortKey) {
+    const key = c => sortKey === 'credit'
+      ? parseCredit(c.credit)
+      : Math.min(...c.offerings.map(o => TERM_ORDER[o.term] ?? 9));
+    filtered = filtered.slice().sort((a, b) => (key(a) - key(b)) * sortDir || a.course_no.localeCompare(b.course_no));
+  }
+  document.querySelectorAll('th.sortable').forEach(th => {
+    th.querySelector('.sort-ind').textContent = th.dataset.sort === sortKey ? (sortDir > 0 ? ' ▲' : ' ▼') : '';
+  });
+
   const LIMIT = 80;
   const shown = filtered.slice(0, LIMIT);
   shown.forEach(c => {
@@ -1038,9 +1054,7 @@ function renderCourseTable() {
 }
 
 // 科目タイトルをクリックしたときに開く詳細行(概要 + 開講情報 + 公式シラバスへのリンク)
-function buildDetailRow(c) {
-  const tr = document.createElement('tr');
-  tr.className = 'detail-row';
+function detailInner(c) {
   const descHtml = c.desc
     ? `<p class="detail-desc">${c.desc}</p>`
     : `<p class="detail-desc empty">概要はまだ取得できていません。公式シラバスのリンクから確認してください。</p>`;
@@ -1051,7 +1065,12 @@ function buildDetailRow(c) {
       <span>${o.schedule || ''}</span>
       ${o.syllabus_url ? `<a href="${o.syllabus_url}" target="_blank" rel="noopener">公式シラバスを見る ↗</a>` : ''}
     </div>`).join('');
-  tr.innerHTML = `<td colspan="6">${descHtml}<div class="offering-list">${offeringsHtml}</div></td>`;
+  return `${descHtml}<div class="offering-list">${offeringsHtml}</div>`;
+}
+function buildDetailRow(c) {
+  const tr = document.createElement('tr');
+  tr.className = 'detail-row';
+  tr.innerHTML = `<td colspan="6">${detailInner(c)}</td>`;
   return tr;
 }
 
@@ -1076,16 +1095,20 @@ function renderEnrolled() {
       : `<select class="e-status e-status-cell">${STATUS_ALL.map(st => `<option ${st === e.status ? 'selected' : ''}>${st}</option>`).join('')}</select>`;
     html += `<div class="erow" data-id="${e.id}">
       <span class="cno">${e.course_no}</span>
-      <span class="e-title">${e.title_ja}</span>
+      <span class="e-title"><button type="button" class="title-btn" data-ecno="${e.course_no}">${e.title_ja}</button></span>
       <select class="e-cat">
         ${ACTIVE_CATEGORIES.map(c => `<option value="${c.id}" ${c.id===e.category_id?'selected':''}>${c.name}</option>`).join('')}
       </select>
       ${statusCell}
       <span class="e-credit">${displayCredit(e.credit)}</span>
       <button class="rm" title="履修リストから外す">✕</button>
-    </div>`;
+    </div>${expandedEnr === e.course_no && courseByNo[e.course_no] ? `<div class="e-detail">${detailInner(courseByNo[e.course_no])}</div>` : ''}`;
   });
   area.innerHTML = html;
+  area.querySelectorAll('.title-btn').forEach(b => b.addEventListener('click', () => {
+    expandedEnr = (expandedEnr === b.dataset.ecno) ? null : b.dataset.ecno;
+    renderEnrolled();
+  }));
 
   area.querySelectorAll('.erow[data-id]').forEach(row => {
     const id = row.dataset.id;
@@ -1183,6 +1206,15 @@ document.getElementById('addStatusSeg').addEventListener('click', ev => {
   renderCourseTable();   // 「＋ 履修済」などのボタン表示を更新
 });
 
+document.querySelector('table.courses thead').addEventListener('click', ev => {
+  const th = ev.target.closest('th.sortable');
+  if (!th) return;
+  // 昇順 → 降順 → 並べ替えなし の順に切り替える
+  if (sortKey !== th.dataset.sort) { sortKey = th.dataset.sort; sortDir = 1; }
+  else if (sortDir === 1) { sortDir = -1; }
+  else { sortKey = ''; sortDir = 1; }
+  renderCourseTable();
+});
 document.getElementById('searchBox').addEventListener('input', renderCourseTable);
 document.getElementById('catFilter').addEventListener('change', renderCourseTable);
 document.getElementById('prefixFilter').addEventListener('change', renderCourseTable);
