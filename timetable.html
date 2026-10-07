@@ -41,6 +41,7 @@ td.ela{background:#4A2F1E;color:#F3E9DC}td.dup{background:var(--rust);color:#fff
 const TTK='icu_planner_timetables_v1',ENK='icu_planner_enrollments_v1',CURK='icu_planner_tt_cur_v1';
 const DAYS=['M','TU','W','TH','F','SA'],DL=['月','火','水','木','金','土'],SUPD=['M','W','TH','F'];
 const ELAN=['ARW','RCA','AS','Tutorial','S&L','ATS','R&E','リサーチライティング'];
+const SN={'4':['13:20','15:15'],'5':['15:25','17:20'],'7':['18:15','20:10']},SC={'4':['14:00','15:45'],'5':['15:55','17:40'],'7':['18:25','20:10']};
 const ROWS=['1','2','3','L','4','5','6','7'];
 const PT={'1':['8:45','10:00'],'2':['10:10','11:25'],'3':['11:35','12:50'],L:['12:50','14:00'],'4':['14:00','15:15'],'5':['15:25','16:40'],'6':['16:50','18:05'],'7':['18:15','19:30']};
 const PC={'1':['8:45','9:50'],'2':['10:00','11:05'],'3':['11:15','12:20'],L:['12:20','14:40'],'4':['14:40','15:45'],'5':['15:55','17:00'],'6':['17:10','18:15'],'7':['18:25','19:30']};
@@ -62,24 +63,31 @@ const colr=p=>COL[p]||hsl2hex((PFX.indexOf(p)*137.508)%360,45,38);
 const tc=h=>{const v=[1,3,5].map(i=>parseInt(h.substr(i,2),16));return(v[0]*299+v[1]*587+v[2]*114)/1000>150?'#1E2A33':'#fff'};
 const sp=s=>{const m=/^(\*?\d)\/([A-Z]+)$/.exec(String(s).replace(/[()>]/g,'').trim());return m&&{p:m[1],d:m[2]}};
 const ov=(a,b)=>a.d===b.d&&TM[a.p][0]<TM[b.p][1]&&TM[b.p][0]<TM[a.p][1];
-const slotsOf=o=>(o.schedule||'').split(',').map(sp).filter(Boolean);
+/*PS*/
+// 例: '2/TH,3/TH<6/M,7/M or 6/W,7/W>' = 固定コマ(木2・3) + 選択コマ(月6・7 または 水6・7)
+function parseSched(str){const x=String(str||'').replace(/[()]/g,'');const m=/^(.*?)<(.*?)>(.*)$/.exec(x);let fixed=x,alts=null;
+  if(m){fixed=m[1]+','+m[3];alts=m[2].split(/\s+or\s+/)}else if(/\s+or\s+/.test(x)){fixed='';alts=x.split(/\s+or\s+/)}
+  const sl=t=>t.split(',').map(sp).filter(Boolean);return{fixed:sl(fixed),alts:alts?alts.map(sl):null}}
+const slotsOf=(o,alt)=>{const r=parseSched(o.schedule);return r.alts?r.fixed.concat(r.alts[alt||0]||r.alts[0]):r.fixed};
+const nAlt=o=>{const r=parseSched(o.schedule);return r.alts?r.alts.length:1};
+/*PE*/
 const off=(c,t)=>c.offerings.find(o=>o.term===t.term&&+o.year===t.year)||c.offerings.find(o=>o.term===t.term);
 const cr=r=>{const s=String(r);let m=s.match(/^(\d+(?:\.\d+)?)\s*\/\s*\(/);if(m)return+m[1];m=s.match(/\((\d+(?:\.\d+)?)\)/);if(m)return+m[1];m=s.match(/^(\d+)\s*\/\s*(\d+)$/);if(m)return m[1]/m[2];return parseFloat(s.replace(/[^\d.]/g,''))||0};
 const fmt=n=>{const a=Math.round(n*3);if(Math.abs(n*3-a)>1e-6)return String(Math.round(n*100)/100);const w=Math.floor(a/3),r=a%3;return r?(w?w+'+'+r+'/3':r+'/3'):String(w)};
 function save(){sv(TTK,tts);sv(CURK,cur);sv(ENK,enr)}
-function occ(t){const a=[];t.ela.forEach(k=>a.push({c:'ELA',s:[sp(k)]}));t.pl.forEach(p=>{const c=CM[p.cno],o=c&&off(c,t);if(o)a.push({c:p.cno,s:slotsOf(o)})});return a}
+function occ(t){const a=[];t.ela.forEach(k=>a.push({c:'ELA',s:[sp(k)]}));t.pl.forEach(p=>{const c=CM[p.cno],o=c&&off(c,t);if(o)a.push({c:p.cno,s:slotsOf(o,p.alt)})});return a}
 const conf=(t,s,skip)=>occ(t).filter(x=>x.c!==skip&&x.s.some(a=>s.some(b=>ov(a,b))));
 function catId(c){const f={'英語(ELA)':'ela','日本語(JLP)':'jlp','一般教育':'ge','保健体育':'hpe'}[c.fixed_category];if(f)return f;if(c.level==null)return'elective';const m=localStorage.getItem('icu_planner_major_v1')||'ISC';return c.level===1?'foundation':(c.prefix===m?'major':'elective')}
 function setSt(cno,st){const e=enr.find(x=>x.course_no===cno);if(e)e.status=st;else{const c=CM[cno];enr.push({id:'e_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),course_no:cno,title_ja:c.title_ja,credit:c.credit,category_id:catId(c),status:st,term_label:''})}}
 // 科目を置く。衝突したら、どちらを残すか尋ねる
-function place(t,c,st){const o=off(c,t);if(!o)return false;const s=slotsOf(o);
+function place(t,c,st){const o=off(c,t);if(!o)return false;let alt=0;if(nAlt(o)>1){const L=parseSched(o.schedule).alts.map(a=>a.map(x=>x.p+'/'+x.d).join(','));alt=confirm(`時限を選んでください。\nOK: ${L[0]}\nキャンセル: ${L[1]}`)?0:1}const s=slotsOf(o,alt);
   if(!s.length){alert('この科目は時限が未定のため、時間割に置けません。');return false}
   const cf=conf(t,s,c.course_no);
   if(cf.some(x=>x.c==='ELA'))return false;
   for(const x of cf){const oc=CM[x.c];
     if(confirm(`「${c.title_ja}」は「${oc.title_ja}」と時限が重なります。\nOK: 「${c.title_ja}」を置く(「${oc.title_ja}」は検討中に戻す)\nキャンセル: 次へ`)){t.pl=t.pl.filter(p=>p.cno!==x.c);setSt(x.c,'検討中')}
     else if(!confirm(`重複したまま両方置きますか?(重複コマはハイライトされます)\nキャンセル: 「${c.title_ja}」を置かない`))return false}
-  t.pl=t.pl.filter(p=>p.cno!==c.course_no);t.pl.push({cno:c.course_no,st});
+  t.pl=t.pl.filter(p=>p.cno!==c.course_no);t.pl.push({cno:c.course_no,st,alt});
   if(st!=='tent')setSt(c.course_no,st);return true}
 // 検討中・予定の科目を仮配置する(開講学期が少ない科目・予定を優先)
 function recommend(){const t=tt(),placed=new Set(t.pl.map(p=>p.cno));let n=0,skip=0;
@@ -104,7 +112,7 @@ function render(){const t=tt();t.em=t.em||{};const cy=new Date().getFullYear(),P
     h+=`<tr><td class="h">${tx}</td>`;
     dys.forEach(d=>{const k=r+'/'+d,me=o.filter(x=>x.s.some(a=>a.p.replace('*','')===r&&a.d===d));
       if(me.length>1){h+='<td class="dup">'+me.map(x=>`<span data-c="${x.c}" style="display:block;cursor:pointer">${esc(CM[x.c].title_ja.slice(0,10))}</span>`).join('')+'</td>';return}
-      if(me.length){const x=me[0];if(x.c==='ELA'){const m=t.em[k];h+=`<td class="ela e" data-k="${k}">ELA${m?'<br>'+esc(CM[m]?CM[m].title_ja.split('：').pop().slice(0,10):m):''}</td>`}else{const p=t.pl.find(p=>p.cno===x.c),sup=x.s.some(a=>a.p[0]==='*'&&a.p.slice(1)===r&&a.d===d);h+=`<td class="c ${p.st==='tent'?'p':p.st==='履修済'?'':'s'}" data-c="${x.c}" style="background:${colr(CM[x.c].prefix)};color:${tc(colr(CM[x.c].prefix))}" title="${esc(CM[x.c].title_ja)}">${sup?'[S]':''}${esc(CM[x.c].title_ja.slice(0,14))}</td>`}return}
+      if(me.length){const x=me[0];if(x.c==='ELA'){const m=t.em[k];h+=`<td class="ela e" data-k="${k}">ELA${m?'<br>'+esc(CM[m]?CM[m].title_ja.split('：').pop().slice(0,10):m):''}</td>`}else{const p=t.pl.find(p=>p.cno===x.c),sup=x.s.some(a=>a.p[0]==='*'&&a.p.slice(1)===r&&a.d===d);h+=`<td class="c ${p.st==='tent'?'p':p.st==='履修済'?'':'s'}" data-c="${x.c}" style="background:${colr(CM[x.c].prefix)};color:${tc(colr(CM[x.c].prefix))}" title="${esc(CM[x.c].title_ja)}">${sup?'[S]':''}${esc(CM[x.c].title_ja.slice(0,14))}<br><span style="font-size:10px;opacity:.85">${(sup?(t.term==='春'&&t.cw?SC:SN)[r]:PX[r]).join('-')}</span></td>`}return}
       h+=o.some(x=>x.s.some(a=>ov(a,{p:r,d})))?'<td class="blk">重複</td>':`<td class="e" data-k="${k}"></td>`});h+='</tr>'});
   $('grid').innerHTML=h;
   $('leg').innerHTML=[...new Set(t.pl.map(p=>CM[p.cno]&&CM[p.cno].prefix).filter(Boolean))].sort().map(x=>`<label>${x} <input type="color" data-pc="${x}" value="${colr(x)}"></label>`).join('');
@@ -113,12 +121,12 @@ function render(){const t=tt();t.em=t.em||{};const cy=new Date().getFullYear(),P
   $('cred').innerHTML=`<h2>この学期の単位数(ELA科目を除く)</h2><b style="font:500 18px var(--mono)">${fmt(used)}</b> / 上限 ${fmt(lim)} 単位<div class="mu" style="margin:6px 0">上限を自分で設定: <input id="cap" type="number" min="0" step="1" value="${t.cap||''}" placeholder="自動 ${fmt(limit(t,1))}" style="width:90px"> <label><input type="checkbox" id="c3"${t.cap3?' checked':''}> +1/3</label></div><div class="mu">標準は13単位(体育実技を履修する場合は+1/3)。空欄なら、選んだ年次の公式の上限(1年次のELA履修者はストリームで異なる)を使います。</div>${used>lim+1e-9?`<div class="warn">上限を ${fmt(used-lim)} 単位超えています。</div>`:''}`;
   if(menu&&menu[0]==='#'){const k=menu.slice(1),es=ELAN;
     $('side').innerHTML=`<h2>このELA枠(${k})の授業</h2>`+es.map(c=>`<div class="row"><span>${esc(c)}</span><button data-em="${esc(c)}">選ぶ</button></div>`).join('')+'<div class="row"><span class="mu">未設定に戻す</span><button data-em="">解除</button></div>'}
-  else if(menu){const p=t.pl.find(p=>p.cno===menu),c=CM[menu];$('side').innerHTML=p?`<h2>${esc(c.title_ja)}</h2><div class="mu">${c.course_no} / ${p.st==='tent'?'仮配置':'現在: '+p.st}</div><div class="bar" style="margin:8px 0 0">${ST.map(s=>`<button data-s="${s}">${s}</button>`).join('')}<button data-s="rm">時間割から外す</button></div>`:''}
+  else if(menu){const p=t.pl.find(p=>p.cno===menu),c=CM[menu];$('side').innerHTML=p?`<h2>${esc(c.title_ja)}</h2><div class="mu">${c.course_no} / ${p.st==='tent'?'仮配置':'現在: '+p.st}</div><div class="bar" style="margin:8px 0 0">${ST.map(s=>`<button data-s="${s}">${s}</button>`).join('')}<button data-s="rm">時間割から外す</button>${nAlt(off(c,t))>1?`<button data-alt="1">時限を切り替え</button>`:''}</div>${nAlt(off(c,t))>1?`<div class="mu" style="margin-top:6px">選択中の時限: ${slotsOf(off(c,t),p.alt).map(a=>a.p+'/'+a.d).join(',')}</div>`:''}`:''}
   else if(look)lookup(look);
   else{$('side').innerHTML='<h2>授業を探す</h2><input id="q" placeholder="科目名・科目番号(この学期の開講)" style="width:100%" value="'+esc(Q)+'"><div id="qr">'+(Q?resRows(search(Q)):'')+'</div><div class="mu" style="margin-top:6px">空いている時限をクリックして、その時限の授業を探すこともできます。</div>'}
   $('list').innerHTML=listHtml(t);save()}
 function lookup(k){const t=tt(),s=sp(k),pl=new Set(t.pl.map(p=>p.cno));
-  const rs=COURSES.filter(c=>{if(pl.has(c.course_no)||c.prefix==='ELA')return false;const e=enr.find(e=>e.course_no===c.course_no);if(e&&e.status==='履修済')return false;const o=off(c,t);if(!o)return false;const ss=slotsOf(o);return ss.some(a=>a.p===s.p&&a.d===s.d)&&!conf(t,ss,c.course_no).length}).slice(0,40);
+  const rs=COURSES.filter(c=>{if(pl.has(c.course_no)||c.prefix==='ELA')return false;const e=enr.find(e=>e.course_no===c.course_no);if(e&&e.status==='履修済')return false;const o=off(c,t);if(!o)return false;return Array.from({length:nAlt(o)},(_,i)=>slotsOf(o,i)).some(ss=>ss.some(a=>a.p===s.p&&a.d===s.d)&&!conf(t,ss,c.course_no).length)}).slice(0,40);
   $('side').innerHTML=`<h2>${DL[DAYS.indexOf(s.d)]}曜 ${s.p[0]==='*'?'スーパー'+s.p[1]:s.p+'限'} に開講</h2>`+resRows(rs)}
 document.addEventListener('click',ev=>{const t=tt(),g=q=>ev.target.closest(q);let b;t.em=t.em||{};
   if(b=g('[data-t]')){cur=+b.dataset.t;menu=look=null}
@@ -131,6 +139,7 @@ document.addEventListener('click',ev=>{const t=tt(),g=q=>ev.target.closest(q);le
   else if(b=g('[data-add]')){const e=enr.find(e=>e.course_no===b.dataset.add);if(place(t,CM[b.dataset.add],e?e.status:'予定'))look=null}
   else if(b=g('[data-sst]'))setSt(b.dataset.c2,b.dataset.sst);
   else if(b=g('[data-em]')){const k=menu.slice(1);if(b.dataset.em)t.em[k]=b.dataset.em;else delete t.em[k];menu=null}
+  else if(b=g('[data-alt]')){const p=t.pl.find(p=>p.cno===menu),o=off(CM[menu],t),n=((p.alt||0)+1)%nAlt(o),cf=conf(t,slotsOf(o,n),menu);if(cf.length)alert('もう一方の時限は、他の科目と重なるため切り替えられません。');else p.alt=n}
   else if(b=g('[data-s]')){const p=t.pl.find(p=>p.cno===menu);if(b.dataset.s==='rm')t.pl=t.pl.filter(x=>x.cno!==menu);else{p.st=b.dataset.s;setSt(menu,p.st)}menu=null}
   else if(b=g('[data-c]')){menu=b.dataset.c;look=null}
   else if(b=g('td[data-k]')){const k=b.dataset.k;if(mode==='ela'){const i=t.ela.indexOf(k);if(i>=0)t.ela.splice(i,1);else if(!conf(t,[sp(k)]).length)t.ela.push(k)}else if(b.classList.contains('ela')){menu='#'+k;look=null}else{look=k;menu=null}}
