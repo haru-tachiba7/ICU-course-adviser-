@@ -214,7 +214,8 @@
     justify-content: space-between;
     align-items: baseline;
   }
-  .ledger-total .label { font-family: var(--serif); font-size: 15px; }
+  .ledger-total { background: var(--panel); padding: 14px 12px; }
+  .ledger-total .label { font-family: var(--serif); font-size: 20px; font-weight: 600; }
   .ledger-total .value { font-family: var(--mono); font-size: 15px; }
   .ledger-total .value b { font-size: 19px; }
 
@@ -699,6 +700,14 @@ function rebuildCategories() {
 }
 rebuildCategories();
 
+// ELAトラックではJLP、JLPトラックではELAの区分を隠す(未選択のときは両方表示)
+function hiddenCat(id) {
+  const t = String(currentElaStream || '');
+  if (id === 'jlp') return t.startsWith('stream');
+  if (id === 'ela') return t.startsWith('jlp_');
+  return false;
+}
+
 // 語学トラック(ELAストリーム or JLP配置レベル)を探す
 function findLanguageTrack(id) {
   const all = (typeof ELA_STREAMS !== 'undefined' ? ELA_STREAMS : [])
@@ -847,6 +856,8 @@ function renderElaStreamSelect() {
     currentElaStream = sel.value;
     saveElaStream(currentElaStream);
     applyStreamOverride();
+    renderCategoryFilter();
+    renderEnrolled();
     renderLedger();
   });
 }
@@ -856,6 +867,7 @@ function renderCategoryFilter() {
   const current = sel.value;
   sel.innerHTML = '<option value="">すべての区分</option>';
   ACTIVE_CATEGORIES.forEach(c => {
+    if (hiddenCat(c.id)) return;
     const opt = document.createElement('option');
     opt.value = c.name;
     opt.textContent = c.name;
@@ -949,6 +961,7 @@ function renderLedger() {
   rows.innerHTML = '';
   let totalReq = 0, totalDone = 0, totalPlan = 0;
   ACTIVE_CATEGORIES.forEach(c => {
+    if (hiddenCat(c.id)) return;
     const req = requiredFor(c);
     totalReq += req;
     const e = earned[c.id], p = planned[c.id];
@@ -972,7 +985,7 @@ function renderLedger() {
       </div>`;
     rows.appendChild(row);
   });
-  document.getElementById('totalValue').innerHTML = `<div style="text-align:right"><div>取得済 <b>${fmtNum(totalDone)}</b> / ${totalReq} 単位</div><div style="font-size:13px">取得予定 <b style="font-size:16px">${fmtNum(totalPlan)}</b> 単位(履修中・予定など)</div><div style="font-size:12px;color:var(--ink-muted)">合計 ${fmtNum(totalDone + totalPlan)} / ${totalReq}</div></div>`;
+  document.getElementById('totalValue').innerHTML = `<div style="text-align:right"><div style="font-size:15px;font-weight:600">取得済 <b style="font-size:30px;color:var(--gold)">${fmtNum(totalDone)}</b> / ${totalReq} 単位</div><div style="font-size:15px;font-weight:600;margin-top:2px">取得予定 <b style="font-size:24px">${fmtNum(totalPlan)}</b> 単位</div><div style="font-size:13px;color:var(--ink-muted);margin-top:2px">(履修中・予定など) 合計 ${fmtNum(totalDone + totalPlan)} / ${totalReq}</div></div>`;
   renderCapRules();
 
   rows.querySelectorAll('.req-edit').forEach(el => {
@@ -1097,7 +1110,7 @@ function renderEnrolled() {
       <span class="cno">${e.course_no}</span>
       <span class="e-title"><button type="button" class="title-btn" data-ecno="${e.course_no}">${e.title_ja}</button></span>
       <select class="e-cat">
-        ${ACTIVE_CATEGORIES.map(c => `<option value="${c.id}" ${c.id===e.category_id?'selected':''}>${c.name}</option>`).join('')}
+        ${ACTIVE_CATEGORIES.filter(c => !hiddenCat(c.id) || c.id === e.category_id).map(c => `<option value="${c.id}" ${c.id===e.category_id?'selected':''}>${c.name}</option>`).join('')}
       </select>
       ${statusCell}
       <span class="e-credit">${displayCredit(e.credit)}</span>
