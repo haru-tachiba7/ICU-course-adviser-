@@ -555,6 +555,7 @@
   </div>
 </div>
 
+<div class="wrap" style="padding:0 24px 70px"><div style="border-top:1px solid var(--border);padding-top:16px;font-size:13px;color:var(--ink-muted)">ご意見、ご要望があればお伝えください。 <a href="https://forms.gle/LjdwNjKYja3AGZjVA" target="_blank" rel="noopener" style="color:var(--gold)">意見フォームはこちら ↗</a></div></div>
 <div class="toast" id="toast"></div>
 
 <script src="data.js"></script>
@@ -1290,10 +1291,18 @@ function positionTutorial() {
   const step = TUTORIAL_STEPS[tutorialStep];
   const { box, card } = tutorialEls;
   const target = document.querySelector(step.selector);
+  // 画面の高さの半分以上ある背の高い要素(左側の充足状況など)は、スクロールせずに画面内の部分だけを囲む
+  let r = target ? target.getBoundingClientRect() : { left: 20, top: 20, width: 0, height: 0, bottom: 20 };
+  const tall = !!target && r.height > window.innerHeight * 0.55;
   if (target && target.scrollIntoView) {
-    try { target.scrollIntoView({ block: 'center' }); } catch (e) {}
+    if (!tall) { try { target.scrollIntoView({ block: 'center' }); } catch (e) {} }
+    else if (r.bottom < 80 || r.top > window.innerHeight - 80) { try { target.scrollIntoView({ block: 'start' }); } catch (e) {} }
+    r = target.getBoundingClientRect();
   }
-  const r = target ? target.getBoundingClientRect() : { left: 20, top: 20, width: 0, height: 0, bottom: 20 };
+  if (tall) {
+    const t = Math.max(r.top, 8), b = Math.min(r.bottom, window.innerHeight - 8);
+    r = { left: r.left, top: t, width: r.width, height: Math.max(0, b - t), bottom: b };
+  }
   const pad = 6;
   box.style.left = (r.left - pad) + 'px';
   box.style.top = (r.top - pad) + 'px';
@@ -1304,6 +1313,7 @@ function positionTutorial() {
   card.style.width = cardWidth + 'px';
   let top = r.bottom + 14;
   if (top + 190 > window.innerHeight) top = Math.max(14, r.top - 14 - 190);
+  if (tall) top = Math.max(14, window.innerHeight - 190 - 14);  // 背の高い要素のときは画面の下側に出す
   let left = Math.min(Math.max(14, r.left), Math.max(14, window.innerWidth - cardWidth - 14));
   card.style.top = top + 'px';
   card.style.left = left + 'px';

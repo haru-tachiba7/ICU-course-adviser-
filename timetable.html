@@ -37,6 +37,7 @@ td.ela{background:#4A2F1E;color:#F3E9DC}td.dup{background:var(--rust);color:#fff
 <div><div class="box" id="cred"></div><div class="box" id="side"></div><div class="box" id="list"></div></div>
 </div>
 </div>
+<div class="wrap" style="padding:0 24px 70px"><div style="border-top:1px solid var(--border);padding-top:16px;font-size:13px;color:var(--muted)">ご意見、ご要望があればお伝えください。 <a href="https://forms.gle/LjdwNjKYja3AGZjVA" target="_blank" rel="noopener" style="color:var(--gold)">意見フォームはこちら ↗</a></div></div>
 <script src="data.js"></script>
 <script>
 const TTK='icu_planner_timetables_v1',ENK='icu_planner_enrollments_v1',CURK='icu_planner_tt_cur_v1';
@@ -123,17 +124,18 @@ function render(){const t=tt();t.em=t.em||{};const cy=new Date().getFullYear(),P
   $('note').textContent=(t.year!==2026?'※2026年度以外は開講データがないため、2026年度の開講を参考に表示しています。':'')+'色=メジャーごと(下の欄で変更できます)、薄く破線=仮配置(クリックで状態を選択)、やや薄い=履修中・予定・検討中、赤=時限が重複、斜線=スーパー時限と時間が重なるコマ、[S]=スーパー時限。';
   const used=t.pl.filter(p=>CM[p.cno]&&CM[p.cno].prefix!=='ELA').reduce((s,p)=>s+cr(CM[p.cno].credit),0),lim=limit(t);
   $('cred').innerHTML=`<h2>この学期の単位数(ELA科目を除く)</h2><b style="font:700 28px var(--mono)">${fmt(used)}</b> / 上限 ${fmt(lim)} 単位<div class="mu" style="margin:6px 0">上限を自分で設定: <input id="cap" type="number" min="0" step="1" value="${t.cap||''}" placeholder="自動 ${fmt(limit(t,1))}" style="width:90px"> <label><input type="checkbox" id="c3"${t.cap3?' checked':''}> +1/3</label></div><div class="mu">標準は13単位(体育実技を履修する場合は+1/3)。空欄なら、選んだ年次の公式の上限(1年次のELA履修者はストリームで異なる)を使います。</div>${used>lim+1e-9?`<div class="warn">上限を ${fmt(used-lim)} 単位超えています。</div>`:''}`;
+  $('side').innerHTML='<h2>授業を探す</h2><input id="q" placeholder="科目名・科目番号(この学期の開講)" style="width:100%" value="'+esc(Q)+'"><div id="sd" style="margin:8px 0"></div><div id="qr">'+(Q?resRows(search(Q)):'')+'</div><div class="mu" style="margin-top:6px">空いている時限をクリックして、その時限の授業を探すこともできます。</div>';
   if(menu&&menu[0]!=='#'&&!(CM[menu]&&off(CM[menu],t)))menu=null;
   if(menu&&menu[0]==='#'){const k=menu.slice(1),es=ELAN;
-    $('side').innerHTML=`<h2>このELA枠(${k})の授業</h2>`+es.map(c=>`<div class="row"><span>${esc(c)}</span><button data-em="${esc(c)}">選ぶ</button></div>`).join('')+'<div class="row"><span class="mu">未設定に戻す</span><button data-em="">解除</button></div>'}
-  else if(menu){const p=t.pl.find(p=>p.cno===menu),c=CM[menu];$('side').innerHTML=p?`<h2>${esc(c.title_ja)}</h2><div class="mu">${c.course_no} / ${p.st==='tent'?'仮配置':'現在: '+p.st}${syl(c,off(c,t,p.sec))?' / '+syl(c,off(c,t,p.sec)):''}</div>${c.desc?`<p class="mu" style="margin:6px 0">${esc(c.desc)}</p>`:''}${offs(c,t).length>1?`<div class="mu" style="margin-top:8px">開講クラス(時限・担当)</div><div style="max-height:240px;overflow:auto">${offs(c,t).map((o,i)=>slotsOf(o,0).length?`<button data-ms="${i}" class="${i===(p.sec||0)?'on':''}" style="margin:2px 4px 2px 0">${esc((o.schedule||'').replace(/\s+/g,' '))} ${esc(o.instructor||'')}</button>`:'').join('')}</div>`:''}<div class="bar" style="margin:8px 0 0">${ST.map(s=>`<button data-s="${s}">${s}</button>`).join('')}<button data-s="rm">時間割から外す</button>${nAlt(off(c,t,p.sec))>1?`${parseSched(off(c,t,p.sec).schedule).alts.map((a,i)=>`<button data-alt="${i}">${a.map(x=>x.p+'/'+x.d).join(',')}</button>`).join('')}`:''}</div>${nAlt(off(c,t,p.sec))>1?`<div class="mu" style="margin-top:6px">選択中の時限: ${slotsOf(off(c,t,p.sec),p.alt).map(a=>a.p+'/'+a.d).join(',')}</div>`:''}`:''}
+    $('sd').innerHTML=`<h2>このELA枠(${k})の授業</h2>`+es.map(c=>`<div class="row"><span>${esc(c)}</span><button data-em="${esc(c)}">選ぶ</button></div>`).join('')+'<div class="row"><span class="mu">未設定に戻す</span><button data-em="">解除</button></div>'}
+  else if(menu){const p=t.pl.find(p=>p.cno===menu),c=CM[menu];$('sd').innerHTML=p?`<h2>${esc(c.title_ja)}</h2><div class="mu">${c.course_no} / ${p.st==='tent'?'仮配置':'現在: '+p.st}${syl(c,off(c,t,p.sec))?' / '+syl(c,off(c,t,p.sec)):''}</div>${c.desc?`<p class="mu" style="margin:6px 0">${esc(c.desc)}</p>`:''}${offs(c,t).length>1?`<div class="mu" style="margin-top:8px">開講クラス(時限・担当)</div><div style="max-height:240px;overflow:auto">${offs(c,t).map((o,i)=>slotsOf(o,0).length?`<button data-ms="${i}" class="${i===(p.sec||0)?'on':''}" style="margin:2px 4px 2px 0">${esc((o.schedule||'').replace(/\s+/g,' '))} ${esc(o.instructor||'')}</button>`:'').join('')}</div>`:''}<div class="bar" style="margin:8px 0 0">${ST.map(s=>`<button data-s="${s}">${s}</button>`).join('')}<button data-s="rm">時間割から外す</button>${nAlt(off(c,t,p.sec))>1?`${parseSched(off(c,t,p.sec).schedule).alts.map((a,i)=>`<button data-alt="${i}">${a.map(x=>x.p+'/'+x.d).join(',')}</button>`).join('')}`:''}</div>${nAlt(off(c,t,p.sec))>1?`<div class="mu" style="margin-top:6px">選択中の時限: ${slotsOf(off(c,t,p.sec),p.alt).map(a=>a.p+'/'+a.d).join(',')}</div>`:''}`:''}
   else if(look)lookup(look);
-  else{$('side').innerHTML='<h2>授業を探す</h2><input id="q" placeholder="科目名・科目番号(この学期の開講)" style="width:100%" value="'+esc(Q)+'"><div id="qr">'+(Q?resRows(search(Q)):'')+'</div><div class="mu" style="margin-top:6px">空いている時限をクリックして、その時限の授業を探すこともできます。</div>'}
+
   $('list').innerHTML=listHtml(t);save()}
 function lookup(k){const t=tt(),s=sp(k),pl=new Set(t.pl.map(p=>p.cno)),rs=[];
   for(const c of COURSES){if(rs.length>=40)break;if(pl.has(c.course_no)||c.prefix==='ELA')continue;const e=enr.find(e=>e.course_no===c.course_no);if(e&&e.status==='履修済')continue;
     let hit=null;offs(c,t).forEach((o,i)=>{for(let j=0;j<nAlt(o)&&!hit;j++){const ss=slotsOf(o,j);if(ss.some(a=>a.p===s.p&&a.d===s.d)&&!conf(t,ss,c.course_no).length)hit={course:c,sec:i,alt:j}}});if(hit)rs.push(hit)}
-  $('side').innerHTML=`<h2>${DL[DAYS.indexOf(s.d)]}曜 ${s.p[0]==='*'?'スーパー'+s.p[1]:s.p+'限'} に開講</h2>`+resRows(rs)}
+  $('sd').innerHTML=`<h2>${DL[DAYS.indexOf(s.d)]}曜 ${s.p[0]==='*'?'スーパー'+s.p[1]:s.p+'限'} に開講</h2>`+resRows(rs)}
 document.addEventListener('click',ev=>{const t=tt(),g=q=>ev.target.closest(q);let b;t.em=t.em||{};
   if(b=g('[data-t]')){cur=+b.dataset.t;menu=look=null;mode=''}
   else if(g('#add')){tts.push(mk(tts.length+1));cur=tts.length-1;menu=look=null;mode=''}
