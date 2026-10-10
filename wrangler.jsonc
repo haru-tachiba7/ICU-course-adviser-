@@ -3,5 +3,5 @@
   "main": "worker.js",
   "compatibility_date": "2026-10-01",
   "assets": { "directory": "./", "binding": "ASSETS" },
-  "kv_namespaces": [{ "binding": "SYNC", "id": "ここにKVのIDを貼る" }]
+  "kv_namespaces": [{ "binding": "SYNC", "id": 79899d1982c14f828027ccd658e34a22 }]
 }
