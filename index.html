@@ -1311,9 +1311,10 @@ function positionTutorial() {
 
   const cardWidth = Math.min(340, window.innerWidth - 32);
   card.style.width = cardWidth + 'px';
+  const ch = card.offsetHeight || 190;   // 説明文の長さで変わるカードの実際の高さ
   let top = r.bottom + 14;
-  if (top + 190 > window.innerHeight) top = Math.max(14, r.top - 14 - 190);
-  if (tall) top = Math.max(14, window.innerHeight - 190 - 14);  // 背の高い要素のときは画面の下側に出す
+  if (top + ch > window.innerHeight - 8) top = Math.max(14, r.top - 18 - ch);   // 下に入らなければ対象の上に出す
+  if (tall) top = Math.max(14, window.innerHeight - ch - 14);  // 背の高い要素のときは画面の下側に出す
   let left = Math.min(Math.max(14, r.left), Math.max(14, window.innerWidth - cardWidth - 14));
   card.style.top = top + 'px';
   card.style.left = left + 'px';
