@@ -24,14 +24,20 @@ td.e{cursor:pointer}td.e:hover{background:var(--panel)}td.x{background:var(--pan
 td.ela{background:#4A2F1E;color:#F3E9DC}td.dup{background:var(--rust);color:#fff;font-weight:500}td.c{cursor:pointer}td.c.p{opacity:.5;outline:2px dashed var(--ink);outline-offset:-3px}td.c.s{opacity:.78}
 .box{padding:10px 12px;background:var(--panel);border:1px solid var(--border);margin-bottom:14px;font-size:12.5px}.warn{color:var(--rust);font-weight:500}.mu{color:var(--muted);font-size:12px}
 .row{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--border)}.row:first-of-type{border-top:0}
+/* 使い方(初回案内) */
+.tutorial-highlight{position:fixed;border:2px solid var(--gold);border-radius:6px;box-shadow:0 0 0 4000px rgba(30,42,51,.45);z-index:51;pointer-events:none;transition:left .18s,top .18s,width .18s,height .18s}
+@media(prefers-color-scheme:dark){.tutorial-highlight{box-shadow:0 0 0 4000px rgba(16,25,31,.55)}}
+.tutorial-card{position:fixed;z-index:52;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:18px 20px;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.tutorial-card h3{font:600 16px var(--serif);margin:0 0 8px}.tutorial-card p{font-size:13px;line-height:1.6;margin:0}
+.tutorial-progress{font:11px var(--mono);color:var(--muted);margin-bottom:8px}.tutorial-actions{margin-top:16px;display:flex;align-items:center;gap:8px}
 </style>
 <script src="sync.js"></script>
 </head>
 <body>
 <div class="wrap">
-<header><div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap"><h1>履修台帳</h1><a href="index.html" class="nv">卒業要件</a><a class="nv on">時間割</a></div></header>
-<div class="tabs" id="tabs"></div>
-<div class="bar" id="bar"></div>
+<header><div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap"><h1>履修台帳</h1><a href="index.html" class="nv">卒業要件</a><a class="nv on">時間割</a><button type="button" id="tutBtn" style="margin-left:6px">使い方</button></div></header>
+<div id="top"><div class="tabs" id="tabs"></div>
+<div class="bar" id="bar"></div></div>
 <div class="layout">
 <div><table id="grid"></table><p class="mu" id="note"></p><div id="leg" class="mu" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:6px"></div></div>
 <div><div class="box" id="cred"></div><div class="box" id="side"></div><div class="box" id="list"></div></div>
@@ -120,7 +126,7 @@ function render(){const t=tt();t.em=t.em||{};const cy=new Date().getFullYear(),P
       if(me.length){const x=me[0];if(x.c==='ELA'){const m=t.em[k];h+=`<td class="ela e" data-k="${k}">ELA${m?'<br>'+esc(CM[m]?CM[m].title_ja.split('：').pop().slice(0,10):m):''}</td>`}else{const p=t.pl.find(p=>p.cno===x.c),sup=x.s.some(a=>a.p[0]==='*'&&a.p.slice(1)===r&&a.d===d);h+=`<td class="c ${p.st==='tent'?'p':p.st==='履修済'?'':'s'}" data-c="${x.c}" style="background:${colr(CM[x.c].prefix)};color:${tc(colr(CM[x.c].prefix))}" title="${esc(CM[x.c].title_ja)}">${sup?'[S]':''}${esc(CM[x.c].title_ja.slice(0,14))}</td>`}return}
       h+=o.some(x=>x.s.some(a=>ov(a,{p:r,d})))?'<td class="blk">重複</td>':`<td class="e" data-k="${k}"></td>`});h+='</tr>'});
   $('grid').innerHTML=h;
-  $('leg').innerHTML=[...new Set(t.pl.map(p=>CM[p.cno]&&CM[p.cno].prefix).filter(Boolean))].sort().map(x=>`<label>${x} <input type="color" data-pc="${x}" value="${colr(x)}"></label>`).join('');
+  $('leg').innerHTML=[...new Set(t.pl.map(p=>CM[p.cno]&&CM[p.cno].prefix).filter(Boolean))].sort().map(x=>`<label>${x} <input type="color" data-pc="${x}" value="${colr(x)}"></label>`).join('')||'<span class="mu">授業を置くと、ここにメジャーごとの色の変更欄が出ます。</span>';
   $('note').textContent=(t.year!==2026?'※2026年度以外は開講データがないため、2026年度の開講を参考に表示しています。':'')+'色=メジャーごと(下の欄で変更できます)、薄く破線=仮配置(クリックで状態を選択)、やや薄い=履修中・予定・検討中、赤=時限が重複、斜線=スーパー時限と時間が重なるコマ、[S]=スーパー時限。';
   const used=t.pl.filter(p=>CM[p.cno]&&CM[p.cno].prefix!=='ELA').reduce((s,p)=>s+cr(CM[p.cno].credit),0),lim=limit(t);
   $('cred').innerHTML=`<h2>この学期の単位数(ELA科目を除く)</h2><b style="font:700 28px var(--mono)">${fmt(used)}</b> / 上限 ${fmt(lim)} 単位<div class="mu" style="margin:6px 0">上限を自分で設定: <input id="cap" type="number" min="0" step="1" value="${t.cap||''}" placeholder="自動 ${fmt(limit(t,1))}" style="width:90px"> <label><input type="checkbox" id="c3"${t.cap3?' checked':''}> +1/3</label></div><div class="mu">標準は13単位(体育実技を履修する場合は+1/3)。空欄なら、選んだ年次の公式の上限(1年次のELA履修者はストリームで異なる)を使います。</div>${used>lim+1e-9?`<div class="warn">上限を ${fmt(used-lim)} 単位超えています。</div>`:''}`;
@@ -159,7 +165,40 @@ document.addEventListener('change',ev=>{const t=tt(),i=ev.target.id;
   if(i==='cap')t.cap=Math.max(0,parseInt(ev.target.value)||0);if(i==='c3')t.cap3=ev.target.checked;
   menu=look=null;render()});
 document.addEventListener('input',ev=>{if(ev.target.id==='q'){Q=ev.target.value;$('qr').innerHTML=Q?resRows(search(Q)):''}});
+
+// ---- 使い方(初回案内) ----
+const TUTK='icu_tt_tutorial_done_v1';
+const TSTEPS=[
+ {sel:'#top',t:'時間割の追加・削除と、年度・年次・学期',b:'上のタブで、複数の時間割を自由に切り替えられます。「＋」で新しい時間割を追加、「🗑」で今の時間割を削除できます。タブの下の欄で、時間割ごとに名前・年度・年次・学期・ELAのストリームを設定します(年次とストリームに合わせて、取得できる単位数の上限が変わります)。春学期は「C-week時間」への切り替え、土曜が不要なら「土曜を非表示」もここで行えます。'},
+ {sel:'#ela',t:'ELAの入力と科目名',b:'「ELA枠を入力」を押してオンにし、ELAの授業がある時限のコマをクリックすると、濃い茶色で塗られます(もう一度クリックで解除)。終わったら、もう一度押してオフに戻します。塗ったコマをクリックすると、ARW・RCA・ASなど、どのELA授業かの名前を選べます。'},
+ {sel:'#cred',t:'取得可能単位数の表示と変更',b:'この学期に置いた授業の単位数と、取得できる上限が表示されます。上限を超えると警告が出ます。上限は「上限を自分で設定」の欄に整数を入れ、必要なら「+1/3」にチェックして変更できます(空欄なら、年次とストリームに合わせた標準の上限です)。'},
+ {sel:'#side',t:'授業を探して追加する',b:'科目名や科目番号で検索できます。時間割の空いているコマをクリックすると、その時限に開講される授業が出ます。結果の「予定」「検討中」で履修リストに登録し、「時間割へ追加」でコマに置きます。置いた授業をクリックすると、概要・シラバスが検索バーの下に出て、状態や開講クラスも変えられます。時限が重なるときは、どちらを残すか確認が出ます。'},
+ {sel:'#list',t:'履修予定の授業の追加と一括仮配置',b:'履修台帳で「予定」「検討中」にした授業のうち、この学期に開講されるものが並びます。「時間割へ追加」で1つずつ置くか、「一括仮配置」で、時限が重ならないものをまとめて仮に置けます。仮配置(破線)の授業はクリックして、履修済・履修中・予定・検討中のどれにするか決めて確定します。'},
+ {sel:'#leg',t:'メジャーごとの色',b:'授業のコマは、メジャー(科目番号の頭の3文字)ごとに色分けされます。授業を置くと、ここに色の変更欄が出るので、好きな色に変えられます。色はすべての時間割で共通です。'}
+];
+let tstep=0,tel=null;
+const tdone=()=>{try{return localStorage.getItem(TUTK)==='1'}catch(e){return false}};
+function tpos(){const st=TSTEPS[tstep],{box,card}=tel,target=document.querySelector(st.sel);
+  let r=target?target.getBoundingClientRect():{left:20,top:20,width:0,height:0,bottom:20};
+  const tall=!!target&&r.height>window.innerHeight*0.55;
+  if(target&&target.scrollIntoView){if(!tall){try{target.scrollIntoView({block:'center'})}catch(e){}}else if(r.bottom<80||r.top>window.innerHeight-80){try{target.scrollIntoView({block:'start'})}catch(e){}}r=target.getBoundingClientRect()}
+  if(tall){const t=Math.max(r.top,8),b=Math.min(r.bottom,window.innerHeight-8);r={left:r.left,top:t,width:r.width,height:Math.max(0,b-t),bottom:b}}
+  const pad=6;box.style.left=(r.left-pad)+'px';box.style.top=(r.top-pad)+'px';box.style.width=(r.width+pad*2)+'px';box.style.height=(r.height+pad*2)+'px';
+  const cw=Math.min(340,window.innerWidth-32);card.style.width=cw+'px';const ch=card.offsetHeight||190;
+  let top=r.bottom+14;if(top+ch>window.innerHeight-8)top=Math.max(14,r.top-18-ch);if(tall)top=Math.max(14,window.innerHeight-ch-14);
+  card.style.top=top+'px';card.style.left=Math.min(Math.max(14,r.left),Math.max(14,window.innerWidth-cw-14))+'px'}
+function trender(){const st=TSTEPS[tstep],card=tel.card,last=tstep===TSTEPS.length-1;
+  card.innerHTML=`<div class="tutorial-progress">ステップ ${tstep+1} / ${TSTEPS.length}</div><h3>${st.t}</h3><p>${st.b}</p><div class="tutorial-actions"><button type="button" id="tutSkip">スキップ</button><div style="flex:1"></div>${tstep>0?'<button type="button" id="tutBack">戻る</button>':''}<button type="button" id="tutNext" class="on">${last?'完了':'次へ'}</button></div>`;
+  card.querySelector('#tutSkip').onclick=tend;
+  card.querySelector('#tutNext').onclick=()=>{if(last)tend();else{tstep++;trender()}};
+  const bk=card.querySelector('#tutBack');if(bk)bk.onclick=()=>{tstep--;trender()};
+  tpos()}
+function tstart(){tstep=0;if(!tel){const box=document.createElement('div');box.className='tutorial-highlight';const card=document.createElement('div');card.className='tutorial-card';tel={box,card}}
+  document.body.appendChild(tel.box);document.body.appendChild(tel.card);window.addEventListener('resize',tpos);trender()}
+function tend(){try{localStorage.setItem(TUTK,'1')}catch(e){}if(tel){tel.box.remove();tel.card.remove()}window.removeEventListener('resize',tpos)}
+document.getElementById('tutBtn').addEventListener('click',tstart);
 render();
+if(!tdone())setTimeout(tstart,400);
 </script>
 </body>
 </html>

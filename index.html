@@ -555,7 +555,7 @@
   </div>
 </div>
 
-<div class="wrap" style="padding:0 24px 70px"><div style="border-top:1px solid var(--border);padding-top:16px;font-size:13px;color:var(--ink-muted)">ご意見、ご要望があればお伝えください。 <a href="https://forms.gle/LjdwNjKYja3AGZjVA" target="_blank" rel="noopener" style="color:var(--gold)">意見フォームはこちら ↗</a></div></div>
+<div class="wrap" style="padding:0 24px 70px"><div id="fb" style="border-top:1px solid var(--border);padding-top:16px;font-size:13px;color:var(--ink-muted)">ご意見、ご要望があればお伝えください。 <a href="https://forms.gle/LjdwNjKYja3AGZjVA" target="_blank" rel="noopener" style="color:var(--gold)">意見フォームはこちら ↗</a></div></div>
 <div class="toast" id="toast"></div>
 
 <script src="data.js"></script>
@@ -1273,6 +1273,11 @@ const TUTORIAL_STEPS = [
     selector: '#sync-btn',
     title: '別の端末とデータを共有',
     body: 'この「同期」ボタンから、スマホとパソコンなど複数の端末でデータを共有できます。1台目で12文字以上のパスフレーズを決めて「始める」を押すと、同期コードが表示されます。2台目でそのコードとパスフレーズを入力すれば引き継げます。データは端末で暗号化されるため、運営側からは読めません。パスフレーズを忘れると復元できないので、コードと一緒に控えておいてください。'
+  },
+  {
+    selector: '#fb',
+    title: 'ご意見・ご要望',
+    body: 'ご意見、ご要望があれば、ページ末尾の「意見フォームはこちら」からお伝えください。'
   }
 ];
 
