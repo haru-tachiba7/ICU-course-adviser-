@@ -1,5 +1,7 @@
 {
   "name": "icu-course-compass",
+  "main": "worker.js",
   "compatibility_date": "2026-10-01",
-  "assets": { "directory": "./" }
+  "assets": { "directory": "./", "binding": "ASSETS" },
+  "kv_namespaces": [{ "binding": "SYNC", "id": "ここにKVのIDを貼る" }]
 }
