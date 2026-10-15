@@ -45,6 +45,7 @@ td.ela{background:#4A2F1E;color:#F3E9DC}td.dup{background:var(--rust);color:#fff
 </div>
 <div class="wrap" style="padding:0 24px 70px"><div style="border-top:1px solid var(--border);padding-top:16px;font-size:13px;color:var(--muted)">ご意見、ご要望があればお伝えください。 <a href="https://forms.gle/LjdwNjKYja3AGZjVA" target="_blank" rel="noopener" style="color:var(--gold)">意見フォームはこちら ↗</a></div></div>
 <script src="data.js"></script>
+<script src="colist.js"></script>
 <script>
 const TTK='icu_planner_timetables_v1',ENK='icu_planner_enrollments_v1',CURK='icu_planner_tt_cur_v1';
 const DAYS=['M','TU','W','TH','F','SA'],DL=['月','火','水','木','金','土'],SUPD=['M','W','TH','F'];
@@ -88,7 +89,7 @@ const fmt=n=>{const a=Math.round(n*3);if(Math.abs(n*3-a)>1e-6)return String(Math
 function save(){sv(TTK,tts);sv(CURK,cur);sv(ENK,enr)}
 function occ(t){const a=[];t.ela.forEach(k=>a.push({c:'ELA',s:[sp(k)]}));t.pl.forEach(p=>{const c=CM[p.cno],o=c&&off(c,t,p.sec);if(o)a.push({c:p.cno,s:slotsOf(o,p.alt)})});return a}
 const conf=(t,s,skip)=>occ(t).filter(x=>x.c!==skip&&x.s.some(a=>s.some(b=>ov(a,b))));
-function catId(c){const f={'英語(ELA)':'ela','日本語(JLP)':'jlp','一般教育':'ge','保健体育':'hpe'}[c.fixed_category];if(f)return f;if(c.level==null)return'elective';const m=localStorage.getItem('icu_planner_major_v1')||'ISC';return c.level===1?'foundation':(c.prefix===m?'major':'elective')}
+function catId(c){const f={'英語(ELA)':'ela','日本語(JLP)':'jlp','一般教育':'ge','保健体育':'hpe'}[c.fixed_category];if(f)return f;if(c.level==null)return'elective';const m=localStorage.getItem('icu_planner_major_v1')||'ISC';return c.level===1?'foundation':((c.prefix===m||(typeof COLIST!=='undefined'&&(COLIST[m]||[]).includes(c.course_no)))?'major':'elective')}
 function setSt(cno,st){const e=enr.find(x=>x.course_no===cno);if(e)e.status=st;else{const c=CM[cno];enr.push({id:'e_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),course_no:cno,title_ja:c.title_ja,credit:c.credit,category_id:catId(c),status:st,term_label:''})}}
 // 科目を置く。衝突したら、どちらを残すか尋ねる
 function place(t,c,st,sec0,alt0){const os=offs(c,t);if(!os.length)return false;let sec=sec0;if(sec==null){sec=os.findIndex(o=>{const q=slotsOf(o,0);return q.length&&!conf(t,q,c.course_no).length});if(sec<0)sec=Math.max(0,os.findIndex(o=>slotsOf(o,0).length))}const o=os[sec];let alt=alt0||0;if(alt0==null&&nAlt(o)>1){const L=parseSched(o.schedule).alts.map(a=>a.map(x=>x.p+'/'+x.d).join(','));alt=L.length===2?(confirm(`時限を選んでください。\nOK: ${L[0]}\nキャンセル: ${L[1]}`)?0:1):Math.min(L.length,Math.max(1,parseInt(prompt('番号を入力してください。\n'+L.map((x,i)=>(i+1)+': '+x).join('\n'),'1'))||1))-1}const s=slotsOf(o,alt);
@@ -184,8 +185,8 @@ function tpos(){const st=TSTEPS[tstep],{box,card}=tel,target=document.querySelec
   if(target&&target.scrollIntoView){if(!tall){try{target.scrollIntoView({block:'center'})}catch(e){}}else if(r.bottom<80||r.top>window.innerHeight-80){try{target.scrollIntoView({block:'start'})}catch(e){}}r=target.getBoundingClientRect()}
   if(tall){const t=Math.max(r.top,8),b=Math.min(r.bottom,window.innerHeight-8);r={left:r.left,top:t,width:r.width,height:Math.max(0,b-t),bottom:b}}
   const pad=6;box.style.left=(r.left-pad)+'px';box.style.top=(r.top-pad)+'px';box.style.width=(r.width+pad*2)+'px';box.style.height=(r.height+pad*2)+'px';
-  const cw=Math.min(340,window.innerWidth-32);card.style.width=cw+'px';const ch=card.offsetHeight||190;
-  let top=r.bottom+14;if(top+ch>window.innerHeight-8)top=Math.max(14,r.top-18-ch);if(tall)top=Math.max(14,window.innerHeight-ch-14);
+  const cw=Math.min(340,window.innerWidth-32);card.style.width=cw+'px';const sb=document.getElementById('sync-btn'),sr=sb&&sb.getBoundingClientRect(),maxBottom=sr&&sr.height>0?Math.min(window.innerHeight-70,sr.top-12):window.innerHeight-70;
+  card.style.maxHeight=Math.max(120,maxBottom-16)+'px';card.style.overflowY='auto';const ch=card.offsetHeight||190;let top=r.bottom+14;if(top+ch>maxBottom)top=r.top-18-ch;if(tall)top=maxBottom-ch;top=Math.max(8,Math.min(top,maxBottom-ch));
   card.style.top=top+'px';card.style.left=Math.min(Math.max(14,r.left),Math.max(14,window.innerWidth-cw-14))+'px'}
 function trender(){const st=TSTEPS[tstep],card=tel.card,last=tstep===TSTEPS.length-1;
   card.innerHTML=`<div class="tutorial-progress">ステップ ${tstep+1} / ${TSTEPS.length}</div><h3>${st.t}</h3><p>${st.b}</p><div class="tutorial-actions"><button type="button" id="tutSkip">スキップ</button><div style="flex:1"></div>${tstep>0?'<button type="button" id="tutBack">戻る</button>':''}<button type="button" id="tutNext" class="on">${last?'完了':'次へ'}</button></div>`;

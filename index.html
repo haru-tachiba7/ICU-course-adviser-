@@ -206,6 +206,21 @@
   .bar-planned { position: absolute; top: 0; height: 100%; background: var(--gold); opacity: 0.35; }
   .cat-row.over .bar-earned { background: var(--rust); }
 
+  .bar-track { overflow: visible; }
+  .bar-check { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--ink); }
+  .cat-name .nums b.g { color: var(--gold); font-weight: 600; }
+  .cat-name .nums .plan { color: var(--ink-muted); }
+  .cat-toggle { background: none; border: 0; padding: 0 6px 0 0; cursor: pointer; color: var(--ink-muted); font-size: 12px; }
+  .find-btn { font-family: var(--sans); font-size: 11.5px; color: var(--gold); background: none; border: 1px solid var(--gold); border-radius: 3px; padding: 1px 7px; cursor: pointer; margin-left: 6px; }
+  .find-btn:hover { background: var(--gold); color: var(--bg); }
+  .cat-detail { margin-top: 10px; padding: 10px 12px; background: var(--panel); font-size: 12px; line-height: 1.6; color: var(--ink-muted); }
+  .cat-detail .detail-h { margin: 8px 0 4px; color: var(--ink); font-weight: 500; }
+  .cat-detail .crow { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-top: 1px solid var(--border); }
+  .cat-detail .crow .t { color: var(--ink); }
+  .cat-detail .crow .tag { white-space: nowrap; }
+  .cat-detail .crow.no { color: var(--rust); }
+  .short-note { margin-bottom: 12px; padding: 8px 12px; background: var(--panel); border-left: 3px solid var(--gold); font-size: 13px; }
+  .short-note button { margin-left: 8px; font-size: 12px; }
   .ledger-total {
     margin-top: 18px;
     padding-top: 16px;
@@ -522,6 +537,7 @@
           <div class="seg" id="addStatusSeg"></div>
           <span class="add-mode-hint">「追加」を押すと、この状態ですぐ履修リストに入ります</span>
         </div>
+        <div id="shortNote" class="short-note" style="display:none"></div>
         <div class="controls">
           <input type="search" id="searchBox" placeholder="科目番号または科目タイトルで検索(例: ISC, 微積分)">
           <select id="catFilter">
@@ -561,6 +577,7 @@
 <script src="data.js"></script>
 <script src="cap_rules.js"></script>
 <script src="majors.js"></script>
+<script src="colist.js"></script>
 <script>
 const STORAGE_KEY = 'icu_planner_enrollments_v1';
 const OVERRIDE_KEY = 'icu_planner_category_overrides_v1';
@@ -657,6 +674,14 @@ let expandedCno = null; // 科目タイトルをクリックして詳細を開�
 
 const majorByPrefix = Object.fromEntries((typeof MAJORS !== 'undefined' ? MAJORS : []).map(m => [m.prefix, m]));
 const courseByNo = Object.fromEntries(COURSES.map(c => [c.course_no, c]));
+// Co-Listing: COLIST[メジャー] = そのメジャーの一覧に掲載されている、他メジャー開講の科目(colist.js)
+const COLIST_SET = {};
+if (typeof COLIST !== 'undefined') Object.entries(COLIST).forEach(([m, l]) => { COLIST_SET[m] = new Set(l); });
+const isCoListed = (courseNo, major) => !!major && !courseNo.startsWith(major) && !!(COLIST_SET[major] && COLIST_SET[major].has(courseNo));
+const belongsTo = (c, major) => !!major && (c.prefix === major || isCoListed(c.course_no, major));
+// Co-Listingの特例(基礎科目は1つの開講元から3単位まで、専攻科目は2つ以上の開講元)がある9メジャー(ガイドp.8-9)
+const COLIST_SPECIAL = ['AMS', 'AST', 'DPS', 'ENV', 'GSS', 'GLS', 'JPS', 'PCS', 'PPL'];
+
 
 // 卒業要件の区分一覧は、履修形態(メジャーのみ/ダブルメジャー/メジャー・マイナー)によって
 // 項目構成が変わる(専攻科目が1本か2本かなど)。data.js の CATEGORIES は「メジャーのみ」の
@@ -768,10 +793,10 @@ function fmtTerms(offerings) {
 function courseCategory(c) {
   if (c.fixed_category) return c.fixed_category;
   if (c.level == null) return null;
-  if (c.prefix === currentMajor) {
+  if (belongsTo(c, currentMajor)) {
     return c.level === 1 ? catById['foundation'].name : catById['major'].name;
   }
-  if (currentMode !== 'single' && c.prefix === currentSecondary) {
+  if (currentMode !== 'single' && belongsTo(c, currentSecondary)) {
     const id = currentMode === 'double' ? 'major2' : 'minor';
     return c.level === 1 ? catById['foundation'].name : catById[id].name;
   }
@@ -791,6 +816,7 @@ function renderModeSelect() {
     applyStreamOverride();
     renderPrimaryLabel();
     renderSecondaryVisibility();
+    fillMajorSelects();
     renderCategoryFilter();
     renderCourseTable();
     renderEnrolled();
@@ -817,13 +843,30 @@ function renderSecondaryVisibility() {
   }
 }
 
+// メジャー1とメジャー2(マイナー)で同じメジャーを選べないようにする。
+// 一方で選んだメジャーは、もう一方の選択欄に表示しない。
+function fillMajorSelects() {
+  if (typeof MAJORS === 'undefined') return;
+  const a = document.getElementById('majorSelect'), b = document.getElementById('secondarySelect');
+  const dual = currentMode !== 'single';
+  if (dual && currentSecondary === currentMajor) {
+    currentSecondary = (MAJORS.find(m => m.prefix !== currentMajor) || MAJORS[0]).prefix;
+    saveSecondary(currentSecondary);
+  }
+  const mk = (excl, cur) => MAJORS.filter(m => m.prefix !== excl)
+    .map(m => `<option value="${m.prefix}" ${m.prefix === cur ? 'selected' : ''}>${m.name}</option>`).join('');
+  a.innerHTML = mk(dual ? currentSecondary : null, currentMajor);
+  b.innerHTML = mk(currentMajor, currentSecondary);
+}
+
 function renderMajorSelect() {
   const sel = document.getElementById('majorSelect');
   if (typeof MAJORS === 'undefined') return;
-  sel.innerHTML = MAJORS.map(m => `<option value="${m.prefix}" ${m.prefix===currentMajor?'selected':''}>${m.name}</option>`).join('');
+  fillMajorSelects();
   sel.addEventListener('change', () => {
     currentMajor = sel.value;
     saveMajor(currentMajor);
+    fillMajorSelects();
     renderCourseTable();
     renderLedger();
   });
@@ -836,10 +879,11 @@ function renderSecondarySelect() {
     currentSecondary = (MAJORS.find(m => m.prefix !== currentMajor) || MAJORS[0]).prefix;
     saveSecondary(currentSecondary);
   }
-  sel.innerHTML = MAJORS.map(m => `<option value="${m.prefix}" ${m.prefix===currentSecondary?'selected':''}>${m.name}</option>`).join('');
+  fillMajorSelects();
   sel.addEventListener('change', () => {
     currentSecondary = sel.value;
     saveSecondary(currentSecondary);
+    fillMajorSelects();
     renderCourseTable();
     renderEnrolled();
     renderLedger();
@@ -891,35 +935,52 @@ function renderPrefixFilter() {
 
 // 基礎科目の「特定メジャーから最低n単位」を計算して1行分のHTMLを作る(履修形態によって複数回使う)
 function minWithinRow(categoryId, prefix, minCredits, label) {
-  const got = enrollments
-    .filter(e => e.status !== '取りやめ' && e.category_id === categoryId && e.course_no.startsWith(prefix))
-    .reduce((sum, e) => sum + parseCredit(e.credit), 0);
+  // 自メジャー開講の科目 + Co-Listing科目(特例の9メジャーは1つの開講元から3単位まで)。
+  // メジャー1にも掲載されているCo-Listing科目は、メジャー1側にだけ数える(二重に数えない)。
+  const prior = (currentMode !== 'single' && prefix === currentSecondary) ? currentMajor : null;
+  let own = 0; const host = {};
+  enrollments.filter(e => e.status !== '取りやめ' && e.category_id === categoryId).forEach(e => {
+    const cr = parseCredit(e.credit);
+    if (e.course_no.startsWith(prefix)) own += cr;
+    else if (isCoListed(e.course_no, prefix) && !(prior && (e.course_no.startsWith(prior) || isCoListed(e.course_no, prior)))) {
+      const k = e.course_no.slice(0, 3); host[k] = (host[k] || 0) + cr;
+    }
+  });
+  const hostCap = COLIST_SPECIAL.includes(prefix) ? 3 : Infinity;
+  const got = own + Object.values(host).reduce((sum, v) => sum + Math.min(v, hostCap), 0);
   const short = got < minCredits;
   return `<div class="rule${short ? ' warn' : ''}">${label}<br><b>${fmtNum(got)}</b> / ${minCredits} 単位</div>`;
+}
+
+// Co-Listingに関する、基礎科目・専攻科目の追加ルール(特例のある9メジャーのみ)
+function coListRulesHtml() {
+  let h = '';
+  const targets = [['major', currentMajor, currentMode === 'double' ? 'メジャー1' : 'メジャー']];
+  if (currentMode === 'double') targets.push(['major2', currentSecondary, 'メジャー2']);
+  if (currentMode === 'minor') targets.push(['minor', currentSecondary, 'マイナー']);
+  targets.forEach(([cid, pfx, label]) => {
+    if (!COLIST_SPECIAL.includes(pfx)) return;
+    const name = (majorByPrefix[pfx] || {}).name || pfx;
+    const live = enrollments.filter(e => e.status !== '取りやめ');
+    const host = {};
+    live.filter(e => e.category_id === 'foundation' && isCoListed(e.course_no, pfx)).forEach(e => {
+      const k = e.course_no.slice(0, 3); host[k] = (host[k] || 0) + parseCredit(e.credit);
+    });
+    const over = Object.entries(host).filter(([, v]) => v > 3);
+    h += `<div class="rule${over.length ? ' warn' : ''}">基礎科目: ${label}(${name})では、Co-Listing科目は1つの開講元メジャーから3単位まで数えられます${over.length ? '<br>3単位を超えている開講元: ' + over.map(([k, v]) => k + ' ' + fmtNum(v) + '単位').join('、') : ''}</div>`;
+    const list = live.filter(e => e.category_id === cid);
+    const own = list.filter(e => e.course_no.startsWith(pfx)).reduce((s, e) => s + parseCredit(e.credit), 0);
+    const hosts = new Set(list.filter(e => !e.course_no.startsWith(pfx)).map(e => e.course_no.slice(0, 3)));
+    const short = list.length > 0 && own === 0 && hosts.size < 2;
+    h += `<div class="rule${short ? ' warn' : ''}">専攻科目: ${label}(${name})は、自メジャー開講の科目を取らない場合、2つ以上の開講元メジャーのCo-Listing科目が必要です<br>自メジャー開講 <b>${fmtNum(own)}</b> 単位 / 他メジャー開講の開講元 <b>${hosts.size}</b> メジャー</div>`;
+  });
+  return h;
 }
 
 function renderCapRules() {
   const el = document.getElementById('capRules');
   if (typeof CAP_RULES === 'undefined' || !el) return;
   let html = '';
-
-  // 一般教育・保健体育: 必修超過分のうち選択科目に算入できる単位数(履修形態によらず共通)
-  CAP_RULES.forEach(rule => {
-    const cat = catById[rule.category_id];
-    if (!cat) return;
-    const req = requiredFor(cat);
-    const assigned = enrollments
-      .filter(e => e.status !== '取りやめ' && e.category_id === rule.category_id)
-      .reduce((sum, e) => sum + parseCredit(e.credit), 0);
-    const surplus = Math.max(0, assigned - req);
-    const creditable = Math.min(surplus, rule.max_credits);
-    const overCap = Math.max(0, surplus - rule.max_credits);
-    let extra = `<br><b>${fmtNum(creditable)}</b> / ${rule.max_credits} 単位(選択科目に算入できる余剰分)`;
-    if (overCap > 0) {
-      extra += `<br><span style="color:var(--rust)">うち ${fmtNum(overCap)} 単位は上限を超えており、卒業要件として数えられません</span>`;
-    }
-    html += `<div class="rule">${rule.description}${extra}</div>`;
-  });
 
   // 基礎科目の最低6単位ルール・専攻科目(メジャー2)の300番台最低3単位ルール
   // (履修形態によって本数・対象メジャーが変わる)
@@ -945,51 +1006,118 @@ function renderCapRules() {
       `基礎科目18単位のうち、マイナー(${secondaryName})の基礎科目から最低6単位を含める必要がある`);
   }
 
+  html += coListRulesHtml();
   el.innerHTML = html;
 }
 
-function renderLedger() {
-  const earned = {}, planned = {};
-  ACTIVE_CATEGORIES.forEach(c => { earned[c.id] = 0; planned[c.id] = 0; });
-  enrollments.forEach(e => {
-    if (!catById[e.category_id]) return;
-    if (e.status === '取りやめ') return;
-    const credit = parseCredit(e.credit);
-    if (e.status === '履修済') earned[e.category_id] += credit;
-    else planned[e.category_id] += credit;
-  });
+// ---- 卒業要件の充足状況 ----
+const STATUS_ORDER = ['履修済', '履修中', '予定', '検討中', '仮予定', '確定'];
+const openCats = new Set();        // 詳細を開いている区分
+let lastRemaining = {};            // 区分ごとの不足単位(授業の逆引きに使う)
+let shortCat = null;               // 不足から授業を探している区分
 
+// 必要単位を超えた分が、選択科目に算入される上限(Infinity=上限なし、0=算入されない)
+function spillCap(id) {
+  const r = (typeof CAP_RULES !== 'undefined' ? CAP_RULES : []).find(x => x.category_id === id);
+  if (r) return r.max_credits;
+  return ['foundation', 'major', 'major2', 'minor'].includes(id) ? Infinity : 0;
+}
+const spillMax = id => { const s = spillCap(id); return Number.isFinite(s) ? s : 0; };
+
+// 単位の集計。withPlanned=true なら、履修中・予定なども取得したものとして数える
+function ledgerModel(withPlanned) {
+  const amt = {}; ACTIVE_CATEGORIES.forEach(c => { amt[c.id] = 0; });
+  enrollments.forEach(e => {
+    if (!catById[e.category_id] || hiddenCat(e.category_id) || e.status === '取りやめ') return;
+    if (withPlanned || e.status === '履修済') amt[e.category_id] += parseCredit(e.credit);
+  });
+  const rec = {}, spills = {}; let spill = 0, total = 0;
+  ACTIVE_CATEGORIES.forEach(c => {
+    if (hiddenCat(c.id) || c.id === 'elective') return;
+    const req = requiredFor(c);
+    rec[c.id] = Math.min(amt[c.id], req);
+    spills[c.id] = Math.min(Math.max(0, amt[c.id] - req), spillCap(c.id));
+    spill += spills[c.id]; total += rec[c.id];
+  });
+  const el = catById['elective'], elReq = el ? requiredFor(el) : 0, elOwn = amt['elective'] || 0;
+  rec['elective'] = Math.min(elOwn + spill, elReq); total += rec['elective'];
+  return { amt, rec, spills, spill, total, elOwn };
+}
+
+// 区分ごとの詳細(必要単位を超えた分の扱い・その区分に算入されている科目)
+function catDetailHtml(c, req, A) {
+  const cap = spillCap(c.id);
+  let note;
+  if (c.id === 'elective') note = '必要単位を超えた分は、卒業要件に算入されません。';
+  else if (cap === Infinity) note = '必要単位を超えた分は、上限なく選択科目として算入されます。';
+  else if (cap > 0) note = `必要単位を超えた分は、${cap}単位まで選択科目として算入されます(それ以上は算入されません)。`;
+  else note = '必要単位を超えた分は、卒業要件に算入されません。';
+  const limit = req + cap;
+  const list = enrollments.filter(e => e.category_id === c.id && e.status !== '取りやめ')
+    .sort((a, b) => { const f = x => { const i = STATUS_ORDER.indexOf(x.status); return i < 0 ? 99 : i; }; return f(a) - f(b); });
+  let cum = 0;
+  const items = list.map(e => {
+    const cr = parseCredit(e.credit), before = cum; cum += cr;
+    let tag, no = false;
+    if (before >= limit) { tag = '算入されない(上限超過)'; no = true; }
+    else if (cum <= req) tag = 'この区分に算入';
+    else if (before >= req) tag = '超過分(選択科目へ)';
+    else tag = 'この区分に算入(一部は超過分)';
+    const co = (isCoListed(e.course_no, currentMajor) || (currentMode !== 'single' && isCoListed(e.course_no, currentSecondary))) ? '・Co-List' : '';
+    return `<div class="crow${no ? ' no' : ''}"><span class="t">${e.course_no} ${e.title_ja}${co}</span><span class="tag">${displayCredit(e.credit)}単位 / ${e.status}<br>${tag}</span></div>`;
+  }).join('');
+  let extra = '';
+  if (c.id === 'elective') {
+    const from = ACTIVE_CATEGORIES.filter(x => A.spills[x.id] > 0)
+      .map(x => `${x.name} ${fmtNum(A.spills[x.id])}単位`).join('、');
+    extra = `<div>他の区分からの算入: ${from || 'なし'}</div>`;
+  }
+  return `<div class="cat-detail"><div>必要単位 ${req}単位${cap > 0 && Number.isFinite(cap) ? `(上限 ${req + cap}単位まで認められます)` : ''}</div><div>${note}</div>${extra}<div class="detail-h">この区分に登録されている科目(取りやめを除く)</div>${items || '<div>登録されている科目はありません。</div>'}</div>`;
+}
+
+function renderLedger() {
+  const E = ledgerModel(false), A = ledgerModel(true);
   const rows = document.getElementById('catRows');
   rows.innerHTML = '';
-  let totalReq = 0, totalDone = 0, totalPlan = 0;
+  let totalReq = 0;
+  lastRemaining = {};
   ACTIVE_CATEGORIES.forEach(c => {
     if (hiddenCat(c.id)) return;
     const req = requiredFor(c);
     totalReq += req;
-    const e = earned[c.id], p = planned[c.id];
-    totalDone += e; totalPlan += p;
-    const safeReq = req > 0 ? req : 1;
-    const pctE = Math.min(100, (e / safeReq) * 100);
-    const pctP = Math.min(100 - pctE, (p / safeReq) * 100);
-    const remaining = Math.max(0, req - e - p);
-    const over = (e + p) > req;
+    // 選択科目は、他の区分からの算入分(上限あり)を含めた「認められる単位」で表示する
+    const e = c.id === 'elective' ? E.rec.elective : E.amt[c.id];
+    const p = (c.id === 'elective' ? A.rec.elective : A.amt[c.id]) - e;
+    const maxV = Math.max(req + spillMax(c.id), 0.0001);       // バーの右端 = 単位として認められる上限
+    const pctE = Math.min(100, (e / maxV) * 100);
+    const pctP = Math.min(100 - pctE, (Math.max(0, p) / maxV) * 100);
+    const remaining = Math.max(0, req - e - Math.max(0, p));
+    lastRemaining[c.id] = remaining;
+    const over = (e + p) > maxV && spillCap(c.id) !== Infinity;
     const isOverridden = categoryOverrides[c.id] !== undefined && categoryOverrides[c.id] !== null && categoryOverrides[c.id] !== '' && Number(categoryOverrides[c.id]) !== c.required_credits;
+    const open = openCats.has(c.id);
     const row = document.createElement('div');
     row.className = 'cat-row' + (over ? ' over' : '');
     row.innerHTML = `
       <div class="cat-name">
-        <span class="n">${c.name}</span>
-        <span class="nums"><b>${fmtNum(e + p)}</b> / <span class="req-edit" data-id="${c.id}" title="クリックして必要単位を変更(規定 ${c.required_credits})">${req}</span> 単位${isOverridden ? ' <span style="opacity:.6">(規定'+c.required_credits+')</span>' : ''}<br>残り ${fmtNum(remaining)}</span>
+        <span class="n"><button type="button" class="cat-toggle" data-id="${c.id}" title="詳細を開く・閉じる">${open ? '▾' : '▸'}</button>${c.name}</span>
+        <span class="nums"><b class="g">${fmtNum(e)}</b> / <span class="req-edit" data-id="${c.id}" title="クリックして必要単位を変更(規定 ${c.required_credits})">${req}</span> 単位${p > 0 ? ` <span class="plan">+${fmtNum(p)}</span>` : ''}${isOverridden ? ' <span style="opacity:.6">(規定' + c.required_credits + ')</span>' : ''}<br>残り ${fmtNum(remaining)}${remaining > 0 ? `<button type="button" class="find-btn" data-id="${c.id}">授業を探す</button>` : ''}</span>
       </div>
       <div class="bar-track">
         <div class="bar-earned" style="width:${pctE}%"></div>
         <div class="bar-planned" style="left:${pctE}%; width:${pctP}%"></div>
-      </div>`;
+        ${maxV > req ? `<div class="bar-check" style="left:${(req / maxV) * 100}%" title="必要単位 ${req}(バーの右端は認められる上限 ${fmtNum(maxV)})"></div>` : ''}
+      </div>${open ? catDetailHtml(c, req, A) : ''}`;
     rows.appendChild(row);
   });
-  document.getElementById('totalValue').innerHTML = `<div style="text-align:right"><div style="font-size:15px;font-weight:600">取得済 <b style="font-size:30px;color:var(--gold)">${fmtNum(totalDone)}</b> / ${totalReq} 単位</div><div style="font-size:15px;font-weight:600;margin-top:2px">取得予定 <b style="font-size:24px">${fmtNum(totalPlan)}</b> 単位</div><div style="font-size:13px;color:var(--ink-muted);margin-top:2px">(履修中・予定など) 合計 ${fmtNum(totalDone + totalPlan)} / ${totalReq}</div></div>`;
+  document.getElementById('totalValue').innerHTML = `<div style="text-align:right"><div style="font-size:15px;font-weight:600"><b style="font-size:32px;color:var(--gold)">${fmtNum(E.total)}</b> / ${totalReq} 単位</div><div style="font-size:15px;font-weight:600;margin-top:2px">+${fmtNum(A.total - E.total)} <span style="font-weight:400;font-size:13px">予定中</span></div><div style="font-size:13px;color:var(--ink-muted);margin-top:2px">すべて取得すると ${fmtNum(A.total)} / ${totalReq}</div></div>`;
   renderCapRules();
 
+  rows.querySelectorAll('.cat-toggle').forEach(b => b.addEventListener('click', () => {
+    if (openCats.has(b.dataset.id)) openCats.delete(b.dataset.id); else openCats.add(b.dataset.id);
+    renderLedger();
+  }));
+  rows.querySelectorAll('.find-btn').forEach(b => b.addEventListener('click', () => shortageSearch(b.dataset.id)));
   rows.querySelectorAll('.req-edit').forEach(el => {
     el.addEventListener('click', () => {
       const id = el.dataset.id;
@@ -1016,7 +1144,30 @@ function renderLedger() {
   });
 }
 
+// 不足している単位から、その区分になる授業を科目一覧で逆引きする
+function shortageSearch(id) {
+  const c = catById[id];
+  if (!c) return;
+  shortCat = id;
+  document.getElementById('catFilter').value = c.name;
+  document.getElementById('prefixFilter').value = '';
+  document.getElementById('searchBox').value = '';
+  renderCourseTable();
+  const br = document.querySelector('.browser');
+  if (br && br.scrollIntoView) br.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function renderShortNote() {
+  const el = document.getElementById('shortNote');
+  const c = shortCat && catById[shortCat];
+  if (c && document.getElementById('catFilter').value === c.name) {
+    el.style.display = '';
+    el.innerHTML = `「${c.name}」の不足(あと ${fmtNum(lastRemaining[shortCat] || 0)} 単位)から授業を探しています<button type="button" id="shortClear">解除</button>`;
+    document.getElementById('shortClear').onclick = () => { shortCat = null; document.getElementById('catFilter').value = ''; renderCourseTable(); };
+  } else { el.style.display = 'none'; }
+}
+
 function renderCourseTable() {
+  renderShortNote();
   const q = document.getElementById('searchBox').value.trim().toUpperCase();
   const catFilter = document.getElementById('catFilter').value;
   const prefixFilter = document.getElementById('prefixFilter').value;
@@ -1053,7 +1204,7 @@ function renderCourseTable() {
       <td><button type="button" class="title-btn" data-cno="${c.course_no}">${c.title_ja}</button></td>
       <td>${displayCredit(c.credit)}</td>
       <td>${fmtTerms(c.offerings)}</td>
-      <td><span class="cat-tag">${courseCategory(c) || '未分類'}</span></td>
+      <td><span class="cat-tag">${courseCategory(c) || '未分類'}${(isCoListed(c.course_no, currentMajor) || (currentMode !== 'single' && isCoListed(c.course_no, currentSecondary))) ? '・Co-List' : ''}</span></td>
       <td><button class="add-btn" data-cno="${c.course_no}">＋ ${addStatus}</button></td>
     `;
     body.appendChild(tr);
@@ -1255,9 +1406,9 @@ const TUTORIAL_STEPS = [
     body: '卒業に必要な単位のうち、区分ごとに今どれだけ取得・計画できているか、あと何単位必要かをここで確認できます。'
   },
   {
-    selector: '#capRules',
-    title: '必要単位を超えた分',
-    body: '必要単位を超えて履修した分は、この「総計」の下に表示されます。選択科目としてどれだけ算入できるかもここで確認できます。(この表示はまだ仮の形で、今後UIを変更する予定です)'
+    selector: '#catRows',
+    title: '区分ごとの詳細と、不足からの授業探し',
+    body: '区分名の左の「▸」を押すと詳細が開きます。必要単位を超えた分の扱い(選択科目に算入される上限など)と、その区分に算入されている科目を確認できます。バーの右端は「認められる上限」で、縦線が必要単位です。不足がある区分の「授業を探す」を押すと、その区分になる授業を科目一覧で探せます。'
   },
   {
     selector: '#addStatusSeg',
@@ -1316,10 +1467,16 @@ function positionTutorial() {
 
   const cardWidth = Math.min(340, window.innerWidth - 32);
   card.style.width = cardWidth + 'px';
+  // 右下の「同期」ボタンの実際の位置より上に収める(スマートフォンのツールバーで画面の高さがずれても対応できる)
+  const sb = document.getElementById('sync-btn'), sr = sb && sb.getBoundingClientRect();
+  const maxBottom = (sr && sr.height > 0) ? Math.min(window.innerHeight - 70, sr.top - 12) : window.innerHeight - 70;
+  card.style.maxHeight = Math.max(120, maxBottom - 16) + 'px';   // 画面が小さいときはカード内をスクロールさせる
+  card.style.overflowY = 'auto';
   const ch = card.offsetHeight || 190;   // 説明文の長さで変わるカードの実際の高さ
   let top = r.bottom + 14;
-  if (top + ch > window.innerHeight - 8) top = Math.max(14, r.top - 18 - ch);   // 下に入らなければ対象の上に出す
-  if (tall) top = Math.max(14, window.innerHeight - ch - 14);  // 背の高い要素のときは画面の下側に出す
+  if (top + ch > maxBottom) top = r.top - 18 - ch;   // 下に入らなければ対象の上に出す
+  if (tall) top = maxBottom - ch;                    // 背の高い要素のときは画面の下側(同期ボタンの上)に出す
+  top = Math.max(8, Math.min(top, maxBottom - ch));
   let left = Math.min(Math.max(14, r.left), Math.max(14, window.innerWidth - cardWidth - 14));
   card.style.top = top + 'px';
   card.style.left = left + 'px';
