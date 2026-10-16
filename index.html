@@ -219,6 +219,21 @@
   .cat-detail .crow .t { color: var(--ink); }
   .cat-detail .crow .tag { white-space: nowrap; }
   .cat-detail .crow.no { color: var(--rust); }
+  .enr-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .tr-head { font-size: 11px; color: var(--ink-muted); letter-spacing: 0.03em; padding: 4px 0; border-bottom: 1px solid var(--ink); }
+  .trow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+  .trow .mu { font-size: 12px; color: var(--ink-muted); }
+  .trow button { font-family: var(--sans); font-size: 12.5px; color: var(--ink); background: var(--panel); border: 1px solid var(--border); border-radius: 3px; padding: 4px 10px; cursor: pointer; margin-left: 4px; }
+  .tr-tag { display: inline-block; margin-right: 8px; padding: 1px 7px; font-size: 11px; color: var(--bg); background: var(--gold); border-radius: 2px; }
+  .tform { background: var(--bg); color: var(--ink); border: 1px solid var(--border); padding: 20px; max-width: 420px; width: 100%; max-height: 90vh; overflow: auto; font-size: 14px; }
+  .tform h3 { font-family: var(--serif); font-size: 17px; margin: 0 0 12px; }
+  .tform label { display: block; margin: 10px 0 4px; font-size: 13px; color: var(--ink-muted); }
+  .tform input, .tform select { width: 100%; font-family: var(--sans); font-size: 16px; color: var(--ink); background: var(--panel); border: 1px solid var(--border); border-radius: 3px; padding: 8px 10px; }
+  .tform .hint { font-size: 12px; color: var(--ink-muted); margin-top: 4px; }
+  .tform .err { font-size: 13px; color: var(--rust); margin-top: 8px; min-height: 1em; }
+  .tform .btns { display: flex; justify-content: space-between; gap: 8px; margin-top: 16px; }
+  .tform .btns button { font-family: var(--sans); font-size: 14px; padding: 8px 16px; border-radius: 3px; cursor: pointer; border: 1px solid var(--border); background: var(--panel); color: var(--ink); }
+  .tform .btns button.primary { background: var(--gold); border-color: var(--gold); color: var(--bg); }
   .short-note { margin-bottom: 12px; padding: 8px 12px; background: var(--panel); border-left: 3px solid var(--gold); font-size: 13px; }
   .short-note button { margin-left: 8px; font-size: 12px; }
   .ledger-total {
@@ -565,6 +580,8 @@
 
       <div class="enrolled">
         <h2>履修リスト(あなたのデータ)</h2>
+        <div class="enr-actions"><button type="button" class="add-btn" id="addCourseBtn">科目を追加</button><button type="button" class="add-btn" id="addTransferBtn">認定単位を追加</button></div>
+        <div id="transferArea"></div>
         <div id="enrolledArea"></div>
       </div>
     </div>
@@ -616,6 +633,18 @@ function saveEnrollments(list) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch (e) {}
 }
 let enrollments = loadEnrollments();
+
+// 認定単位(入学前の単位認定など)。授業ではないので、履修リストの科目とは別に持つ。
+// { id, name, credit(ICUで認定された単位数), category_id(算入先の区分), memo }
+const TRANSFER_KEY = 'icu_planner_transfer_v1';
+function loadTransfers() {
+  try { const r = localStorage.getItem(TRANSFER_KEY); return r ? JSON.parse(r) : []; } catch (e) { return []; }
+}
+function saveTransfers() {
+  try { localStorage.setItem(TRANSFER_KEY, JSON.stringify(transfers)); } catch (e) {}
+}
+let transfers = loadTransfers();
+const escHtml = x => String(x == null ? '' : x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 function loadMajor() {
   try { return localStorage.getItem(MAJOR_KEY) || 'ISC'; } catch (e) { return 'ISC'; }
@@ -1031,6 +1060,10 @@ function ledgerModel(withPlanned) {
     if (!catById[e.category_id] || hiddenCat(e.category_id) || e.status === '取りやめ') return;
     if (withPlanned || e.status === '履修済') amt[e.category_id] += parseCredit(e.credit);
   });
+  // 認定単位は、認定済みの単位として取得済みに加算する(必要単位は変更しない)
+  transfers.forEach(t => {
+    if (catById[t.category_id] && !hiddenCat(t.category_id)) amt[t.category_id] += parseCredit(t.credit);
+  });
   const rec = {}, spills = {}; let spill = 0, total = 0;
   ACTIVE_CATEGORIES.forEach(c => {
     if (hiddenCat(c.id) || c.id === 'elective') return;
@@ -1055,24 +1088,32 @@ function catDetailHtml(c, req, A) {
   const limit = req + cap;
   const list = enrollments.filter(e => e.category_id === c.id && e.status !== '取りやめ')
     .sort((a, b) => { const f = x => { const i = STATUS_ORDER.indexOf(x.status); return i < 0 ? 99 : i; }; return f(a) - f(b); });
+  const trs = transfers.filter(t => t.category_id === c.id);
+  const trSum = trs.reduce((sum, t) => sum + parseCredit(t.credit), 0);
+  const normSum = list.filter(e => e.status === '履修済').reduce((sum, e) => sum + parseCredit(e.credit), 0);
+  // 認定単位(認定済み=取得済み)を先に、その後に通常科目を数える
+  const all = trs.map(t => ({ tr: true, title: t.name, credit: t.credit, status: '認定済み', memo: t.memo }))
+    .concat(list.map(e => ({ tr: false, no: e.course_no, title: e.title_ja, credit: e.credit, status: e.status })));
   let cum = 0;
-  const items = list.map(e => {
+  const items = all.map(e => {
     const cr = parseCredit(e.credit), before = cum; cum += cr;
     let tag, no = false;
     if (before >= limit) { tag = '算入されない(上限超過)'; no = true; }
     else if (cum <= req) tag = 'この区分に算入';
     else if (before >= req) tag = '超過分(選択科目へ)';
     else tag = 'この区分に算入(一部は超過分)';
-    const co = (isCoListed(e.course_no, currentMajor) || (currentMode !== 'single' && isCoListed(e.course_no, currentSecondary))) ? '・Co-List' : '';
-    return `<div class="crow${no ? ' no' : ''}"><span class="t">${e.course_no} ${e.title_ja}${co}</span><span class="tag">${displayCredit(e.credit)}単位 / ${e.status}<br>${tag}</span></div>`;
+    const co = (!e.tr && (isCoListed(e.no, currentMajor) || (currentMode !== 'single' && isCoListed(e.no, currentSecondary)))) ? '・Co-List' : '';
+    const label = e.tr ? `<span class="tr-tag">認定単位</span>${escHtml(e.title)}${e.memo ? '(' + escHtml(e.memo) + ')' : ''}` : `${e.no} ${e.title}${co}`;
+    return `<div class="crow${no ? ' no' : ''}"><span class="t">${label}</span><span class="tag">${displayCredit(e.credit)}単位 / ${e.status}<br>${tag}</span></div>`;
   }).join('');
+  const breakdown = trs.length ? `<div class="detail-h">取得済みの内訳</div><div>通常科目による取得 ${fmtNum(normSum)}単位 / 認定単位 ${fmtNum(trSum)}単位</div>` : '';
   let extra = '';
   if (c.id === 'elective') {
     const from = ACTIVE_CATEGORIES.filter(x => A.spills[x.id] > 0)
       .map(x => `${x.name} ${fmtNum(A.spills[x.id])}単位`).join('、');
     extra = `<div>他の区分からの算入: ${from || 'なし'}</div>`;
   }
-  return `<div class="cat-detail"><div>必要単位 ${req}単位${cap > 0 && Number.isFinite(cap) ? `(上限 ${req + cap}単位まで認められます)` : ''}</div><div>${note}</div>${extra}<div class="detail-h">この区分に登録されている科目(取りやめを除く)</div>${items || '<div>登録されている科目はありません。</div>'}</div>`;
+  return `<div class="cat-detail"><div>必要単位 ${req}単位${cap > 0 && Number.isFinite(cap) ? `(上限 ${req + cap}単位まで認められます)` : ''}</div><div>${note}</div>${extra}${breakdown}<div class="detail-h">この区分に登録されている科目(取りやめを除く)</div>${items || '<div>登録されている科目はありません。</div>'}</div>`;
 }
 
 function renderLedger() {
@@ -1245,7 +1286,75 @@ function renderAddStatusSeg() {
   el.innerHTML = STATUS_MAIN.map(st => `<button data-status="${st}" class="${st === addStatus ? 'on' : ''}">${st}</button>`).join('');
 }
 
+// ---- 認定単位 ----
+function renderTransfers() {
+  const el = document.getElementById('transferArea');
+  if (!el) return;
+  if (!transfers.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="tr-head">認定単位</div>' + transfers.map(t => {
+    const cat = catById[t.category_id];
+    return `<div class="trow" data-id="${t.id}"><div><span class="tr-tag">認定単位</span><b>${escHtml(t.name)}</b><br><span class="mu">${cat ? cat.name : '(現在の履修形態にない区分)'} ・ ${displayCredit(t.credit)}単位${t.memo ? ' ・ ' + escHtml(t.memo) : ''}</span></div><div style="white-space:nowrap"><button type="button" class="tr-edit">編集</button><button type="button" class="tr-del">削除</button></div></div>`;
+  }).join('');
+  el.querySelectorAll('.trow').forEach(row => {
+    const id = row.dataset.id;
+    row.querySelector('.tr-edit').addEventListener('click', () => openTransferForm(id));
+    row.querySelector('.tr-del').addEventListener('click', () => {
+      const idx = transfers.findIndex(x => x.id === id);
+      if (idx < 0) return;
+      const removed = transfers.splice(idx, 1)[0];
+      saveTransfers(); renderTransfers(); renderLedger();
+      showToast(`認定単位「${removed.name}」を削除しました`, () => {
+        transfers.splice(Math.min(idx, transfers.length), 0, removed);
+        saveTransfers(); renderTransfers(); renderLedger();
+      });
+    });
+  });
+}
+
+function openTransferForm(editId) {
+  const t = editId ? transfers.find(x => x.id === editId) : null;
+  const cats = ACTIVE_CATEGORIES.filter(c => !hiddenCat(c.id));
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:70;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `<div class="tform">
+    <h3>${t ? '認定単位を編集' : '認定単位を追加'}</h3>
+    <label for="tfName">名称</label>
+    <input id="tfName" placeholder="例:入学前の認定単位" value="${escHtml(t ? t.name : '')}">
+    <label for="tfCredit">認定された単位数</label>
+    <input id="tfCredit" inputmode="decimal" placeholder="6" value="${escHtml(t ? t.credit : '')}">
+    <div class="hint">元の大学の単位数ではなく、ICUで認定された単位数を入力してください。</div>
+    <label for="tfCat">算入先</label>
+    <select id="tfCat">${cats.map(c => `<option value="${c.id}"${t && t.category_id === c.id ? ' selected' : ''}>${c.name}</option>`).join('')}</select>
+    <label for="tfMemo">メモ(任意)</label>
+    <input id="tfMemo" placeholder="認定内容など" value="${escHtml(t ? t.memo : '')}">
+    <div class="err" id="tfErr"></div>
+    <div class="btns"><button type="button" id="tfCancel">キャンセル</button><button type="button" class="primary" id="tfOk">${t ? '保存する' : '追加する'}</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+  const q = id => ov.querySelector('#' + id), close = () => ov.remove();
+  q('tfName').focus();
+  q('tfCancel').onclick = close;
+  ov.addEventListener('click', ev => { if (ev.target === ov) close(); });
+  q('tfOk').onclick = () => {
+    const name = q('tfName').value.trim(), creditText = q('tfCredit').value.trim(), credit = parseCredit(creditText);
+    if (!name) { q('tfErr').textContent = '名称を入力してください。'; return; }
+    if (!(credit > 0)) { q('tfErr').textContent = '認定された単位数を、0より大きい数で入力してください。'; return; }
+    const rec = { name, credit: creditText, category_id: q('tfCat').value, memo: q('tfMemo').value.trim() };
+    if (t) { Object.assign(t, rec); }
+    else { rec.id = 'tr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); transfers.push(rec);
+      showToast(`認定単位「${name}」を追加しました`, () => { transfers = transfers.filter(x => x.id !== rec.id); saveTransfers(); renderTransfers(); renderLedger(); }); }
+    saveTransfers(); renderTransfers(); renderLedger(); close();
+  };
+}
+document.getElementById('addTransferBtn').addEventListener('click', () => openTransferForm(null));
+document.getElementById('addCourseBtn').addEventListener('click', () => {
+  const br = document.querySelector('.browser');
+  if (br && br.scrollIntoView) br.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('searchBox').focus();
+});
+
 function renderEnrolled() {
+  renderTransfers();
   const area = document.getElementById('enrolledArea');
   if (enrollments.length === 0) {
     area.innerHTML = '<div class="empty-note">まだ何も追加されていません。上の科目一覧から「＋」を押してください。</div>';
