@@ -367,6 +367,32 @@
   }
   .offering-list a { color: var(--gold); white-space: nowrap; }
 
+  /* ---- スマホ: 科目検索の表を、科目ごとのカードに切り替える ---- */
+  @media (max-width: 700px) {
+    table.courses, table.courses tbody { display: block; }
+    table.courses thead { display: none; }
+    table.courses tbody tr:not(.detail-row) {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+      padding: 10px 12px; margin-bottom: 8px;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 4px;
+    }
+    table.courses tbody tr:not(.detail-row):hover { background: var(--panel); }
+    table.courses tbody tr:not(.detail-row) td { display: block; padding: 0; border: 0; width: auto !important; font-size: 12.5px; color: var(--ink-muted); }
+    /* 1行目: 科目タイトル + 追加ボタン */
+    table.courses tbody tr:not(.detail-row) td:nth-child(2) { order: 1; flex: 1 1 calc(100% - 130px); max-width: calc(100% - 130px); font-size: 14.5px; color: var(--ink); }
+    table.courses tbody tr:not(.detail-row) td:nth-child(6) { order: 2; flex: 0 0 auto; margin-left: auto; }
+    table.courses tbody tr:not(.detail-row) td:nth-child(6) .add-btn { min-height: 36px; padding: 6px 12px; white-space: nowrap; }
+    /* 2行目: 科目番号・単位・開講学期・区分 */
+    table.courses tbody tr:not(.detail-row) td:nth-child(1) { order: 3; }
+    table.courses tbody tr:not(.detail-row) td:nth-child(3) { order: 4; }
+    table.courses tbody tr:not(.detail-row) td:nth-child(3)::after { content: '単位'; }
+    table.courses tbody tr:not(.detail-row) td:nth-child(4) { order: 5; }
+    table.courses tbody tr:not(.detail-row) td:nth-child(4)::before { content: '開講 '; }
+    table.courses tbody tr:not(.detail-row) td:nth-child(5) { order: 6; }
+    table.courses tbody tr.detail-row { display: block; margin: -4px 0 8px; }
+    table.courses tbody tr.detail-row td { display: block; border: 0; }
+  }
+
   /* ---- Enrollment panel ---- */
   .enrolled {
     margin-top: 40px;
