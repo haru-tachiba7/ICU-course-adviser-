@@ -118,7 +118,7 @@ function listHtml(t){const l=enr.filter(e=>(e.status==='予定'||e.status==='検
 function render(){const t=tt();t.em=t.em||{};const cy=new Date().getFullYear(),PX=t.term==='春'&&t.cw?PC:PT,SPX=t.term==='春'&&t.cw?SC:SN,dys=t.nosat?DAYS.slice(0,5):DAYS,gr=t.grade||1;
   $('tabs').innerHTML=tts.map((x,i)=>`<button class="tab${i===cur?' on':''}" data-t="${i}">${esc(x.name)}</button>`).join('')+'<button id="add" title="時間割を追加">＋</button>';
   $('bar').innerHTML=`<input id="nm" value="${esc(t.name)}" style="width:130px"><select id="yr">${Array.from({length:13},(_,i)=>cy-6+i).map(y=>`<option${y===t.year?' selected':''}>${y}</option>`).join('')}</select>年度<select id="gr">${[1,2,3,4].map(g=>`<option${g===gr?' selected':''}>${g}</option>`).join('')}</select>年次<select id="tm">${['春','秋','冬'].map(x=>`<option${x===t.term?' selected':''}>${x}</option>`).join('')}</select>学期
-   <select id="st" title="この時間割のELAストリーム(単位上限に使います)"><option value="">ELA:履修台帳に従う</option>${[1,2,3,4].map(n=>`<option value="stream${n}"${t.stream==='stream'+n?' selected':''}>Stream ${n}</option>`).join('')}<option value="none"${t.stream==='none'?' selected':''}>ELAなし</option></select><button id="ela" class="${mode==='ela'?'on':''}">ELA枠を入力</button>${t.term==='春'?`<button id="cw" class="${t.cw?'on':''}">C-week時間</button>`:''}<button id="sat">${t.nosat?'土曜を表示':'土曜を非表示'}</button><button id="del" title="この時間割を削除">🗑</button>`;
+   <select id="st" title="この時間割のELAストリーム(単位上限に使います)"><option value="">ELA:履修台帳に従う</option>${[1,2,3,4].map(n=>`<option value="stream${n}"${t.stream==='stream'+n?' selected':''}>Stream ${n}</option>`).join('')}<option value="none"${t.stream==='none'?' selected':''}>ELAなし</option></select><button id="ela" class="${mode==='ela'?'on':''}">ELA枠を入力</button>${t.term==='春'?`<button id="cw" class="${t.cw?'on':''}">C-week時間</button>`:''}<button id="sat">${t.nosat?'土曜を表示':'土曜を非表示'}</button><button id="shareBtn" type="button">画像で共有</button><button id="del" title="この時間割を削除">🗑</button>`;
   const o=occ(t);let h='<tr><th></th>'+dys.map(d=>`<th>${DL[DAYS.indexOf(d)]}</th>`).join('')+'</tr>';
   ROWS.forEach(r=>{const tx=`${r==='L'?'昼休み':r+'限'}<br>${PX[r][0]}-${PX[r][1]}`+(SPX[r]?`<br><span style="font-size:10px;opacity:.8">スーパー ${SPX[r][0]}-${SPX[r][1]}</span>`:'');
     if(r==='L'){h+=`<tr class="lun"><td class="h">${tx}</td><td class="x" colspan="${dys.length}" style="height:24px"></td></tr>`;return}
@@ -171,7 +171,7 @@ document.addEventListener('input',ev=>{if(ev.target.id==='q'){Q=ev.target.value;
 // ---- 使い方(初回案内) ----
 const TUTK='icu_tt_tutorial_done_v1';
 const TSTEPS=[
- {sel:'#top',t:'時間割の追加・削除と、年度・年次・学期',b:'上のタブで、複数の時間割を自由に切り替えられます。「＋」で新しい時間割を追加、「🗑」で今の時間割を削除できます。タブの下の欄で、時間割ごとに名前・年度・年次・学期・ELAのストリームを設定します(年次とストリームに合わせて、取得できる単位数の上限が変わります)。春学期は「C-week時間」への切り替え、土曜が不要なら「土曜を非表示」もここで行えます。'},
+ {sel:'#top',t:'時間割の追加・削除と、年度・年次・学期',b:'上のタブで、複数の時間割を自由に切り替えられます。「＋」で新しい時間割を追加、「🗑」で今の時間割を削除できます。タブの下の欄で、時間割ごとに名前・年度・年次・学期・ELAのストリームを設定します(年次とストリームに合わせて、取得できる単位数の上限が変わります)。春学期は「C-week時間」への切り替え、土曜が不要なら「土曜を非表示」もここで行えます。「画像で共有」で、時間割を画像にして友達に送れます。'},
  {sel:'#ela',t:'ELAの入力と科目名',b:'「ELA枠を入力」を押してオンにし、ELAの授業がある時限のコマをクリックすると、濃い茶色で塗られます(もう一度クリックで解除)。終わったら、もう一度押してオフに戻します。塗ったコマをクリックすると、ARW・RCA・ASなど、どのELA授業かの名前を選べます。'},
  {sel:'#cred',t:'取得可能単位数の表示と変更',b:'この学期に置いた授業の単位数と、取得できる上限が表示されます。上限を超えると警告が出ます。上限は「上限を自分で設定」の欄に整数を入れ、必要なら「+1/3」にチェックして変更できます(空欄なら、年次とストリームに合わせた標準の上限です)。'},
  {sel:'#side',t:'授業を探して追加する',b:'科目名や科目番号で検索できます。時間割の空いているコマをクリックすると、その時限に開講される授業が出ます。結果の「予定」「検討中」で履修リストに登録し、「時間割へ追加」でコマに置きます。置いた授業をクリックすると、概要・シラバスが検索バーの下に出て、状態や開講クラスも変えられます。時限が重なるときは、どちらを残すか確認が出ます。'},
@@ -198,6 +198,101 @@ function trender(){const st=TSTEPS[tstep],card=tel.card,last=tstep===TSTEPS.leng
 function tstart(){tstep=0;if(!tel){const box=document.createElement('div');box.className='tutorial-highlight';const card=document.createElement('div');card.className='tutorial-card';tel={box,card}}
   document.body.appendChild(tel.box);document.body.appendChild(tel.card);window.addEventListener('resize',tpos);trender()}
 function tend(){try{localStorage.setItem(TUTK,'1')}catch(e){}if(tel){tel.box.remove();tel.card.remove()}window.removeEventListener('resize',tpos)}
+// ---- 時間割を画像にして共有(画像だけを渡す。履修データや同期コードは含まれない) ----
+function wrapJa(g, text, maxW, maxLines) {
+  const lines = []; let cur = '', cut = false;
+  for (const ch of text) {
+    if (g.measureText(cur + ch).width > maxW && cur) {
+      if (lines.length === maxLines - 1) { cut = true; break; }
+      lines.push(cur); cur = ch;
+    } else cur += ch;
+  }
+  if (!cut && cur) lines.push(cur);
+  if (cut) { lines.push(cur); lines[lines.length - 1] = lines[lines.length - 1].slice(0, -1) + '…'; }
+  return lines.slice(0, maxLines);
+}
+function drawTimetable(t, o) {
+  const cw = t.term === '春' && t.cw, PX = cw ? PC : PT, dys = t.nosat ? DAYS.slice(0, 5) : DAYS;
+  const W = 1080, M = 40, LW = o.times ? 124 : 72, top0 = o.title ? (o.name ? 150 : 110) : 40, HH = 56, RH = 112, LH = 44;
+  const colW = (W - M * 2 - LW) / dys.length, FONT = "'Hiragino Sans','Noto Sans JP','Yu Gothic',sans-serif";
+  const H = top0 + HH + ROWS.reduce((sum, r) => sum + (r === 'L' ? LH : RH), 0) + M;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#EFEAE0'; g.fillRect(0, 0, W, H);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (o.title) {
+    g.fillStyle = '#1E2A33'; g.textAlign = 'left'; g.font = '600 44px ' + FONT;
+    g.fillText(t.year + '年度 ' + t.term + '学期の時間割', M, 62);
+    if (o.name) { g.font = '400 26px ' + FONT; g.fillStyle = '#5C6B73'; g.fillText(t.name, M, 112); }
+    g.textAlign = 'center';
+  }
+  g.font = '500 24px ' + FONT; g.fillStyle = '#5C6B73';
+  dys.forEach((d, i) => g.fillText(DL[DAYS.indexOf(d)], M + LW + colW * i + colW / 2, top0 + HH / 2));
+  const o2 = occ(t); let y = top0 + HH;
+  ROWS.forEach(r => {
+    const h = r === 'L' ? LH : RH;
+    g.fillStyle = '#E4DDCE'; g.fillRect(M, y, LW, h);
+    g.fillStyle = '#5C6B73';
+    if (r === 'L') { g.font = '400 20px ' + FONT; g.fillText('昼休み', M + LW / 2, y + h / 2); }
+    else if (o.times) { g.font = '500 24px ' + FONT; g.fillText(r + '限', M + LW / 2, y + h / 2 - 16); g.font = '400 17px ' + FONT; g.fillText(PX[r][0] + '-' + PX[r][1], M + LW / 2, y + h / 2 + 16); }
+    else { g.font = '500 26px ' + FONT; g.fillText(r, M + LW / 2, y + h / 2); }
+    dys.forEach((d, i) => {
+      const x = M + LW + colW * i, me = r === 'L' ? [] : o2.filter(q => q.s.some(a => a.p.replace('*', '') === r && a.d === d));
+      let bg = '#EFEAE0', fg = '#1E2A33', lines = [];
+      if (me.length > 1) { bg = '#9C4530'; fg = '#fff'; g.font = '500 21px ' + FONT; lines = me.map(q => wrapJa(g, CM[q.c].title_ja, colW - 20, 1)[0]); }
+      else if (me.length) {
+        const q = me[0];
+        if (q.c === 'ELA') { bg = '#4A2F1E'; fg = '#F3E9DC'; const nm = t.em && t.em[r + '/' + d]; g.font = '500 22px ' + FONT; lines = ['ELA'].concat(nm ? wrapJa(g, CM[nm] ? CM[nm].title_ja.split('：').pop() : nm, colW - 20, 1) : []); }
+        else { bg = colr(CM[q.c].prefix); fg = tc(bg); g.font = '500 22px ' + FONT; lines = wrapJa(g, CM[q.c].title_ja, colW - 20, 3); }
+      }
+      g.fillStyle = bg; g.fillRect(x, y, colW, h);
+      g.strokeStyle = '#C9BFA9'; g.lineWidth = 2; g.strokeRect(x, y, colW, h);
+      if (lines.length) { g.fillStyle = fg; const lh = 28, y0 = y + h / 2 - (lines.length - 1) * lh / 2; lines.forEach((ln, k) => g.fillText(ln, x + colW / 2, y0 + k * lh)); }
+    });
+    g.strokeStyle = '#C9BFA9'; g.lineWidth = 2; g.strokeRect(M, y, LW, h);
+    y += h;
+  });
+  return cv;
+}
+function openShare() {
+  const t = tt(), o = { title: true, name: false, times: true };
+  let blob = null;
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:70;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto';
+  ov.innerHTML = `<div style="background:var(--bg);color:var(--ink);border:1px solid var(--border);padding:16px;max-width:560px;width:100%;font-size:14px">
+    <h3 style="font:600 17px var(--serif);margin:0 0 6px">時間割を画像で共有</h3>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">画像だけを共有します。履修データや同期コードは含まれません。</div>
+    <label style="display:block;margin:4px 0"><input type="checkbox" id="shT" checked> 年度・学期の見出しを入れる</label>
+    <label style="display:block;margin:4px 0"><input type="checkbox" id="shN"> 時間割の名前も入れる(「${esc(t.name)}」)</label>
+    <label style="display:block;margin:4px 0"><input type="checkbox" id="shM" checked> 各時限の時刻を入れる</label>
+    <div id="shPrev" style="margin:12px 0;background:var(--panel);padding:6px"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="shGo" class="on">共有する</button><button type="button" id="shSave">画像を保存</button><button type="button" id="shClose">閉じる</button></div>
+    <div id="shMsg" style="font-size:12.5px;color:var(--rust);margin-top:8px;min-height:1em"></div></div>`;
+  document.body.appendChild(ov);
+  const q = id => ov.querySelector('#' + id);
+  function draw() {
+    o.title = q('shT').checked; o.name = q('shN').checked; o.times = q('shM').checked; blob = null;
+    const cv = drawTimetable(t, o); cv.style.cssText = 'width:100%;height:auto;display:block';
+    q('shPrev').innerHTML = ''; q('shPrev').appendChild(cv);
+    cv.toBlob(b => { blob = b; }, 'image/png');
+  }
+  ['shT', 'shN', 'shM'].forEach(id => q(id).addEventListener('change', draw));
+  const fname = t.year + '_' + t.term + '_timetable.png';
+  const save = () => { if (!blob) { q('shMsg').textContent = '画像を作成中です。もう一度押してください。'; return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; document.body.appendChild(a); a.click(); a.remove(); };
+  q('shSave').onclick = save;
+  q('shGo').onclick = async () => {
+    if (!blob) { q('shMsg').textContent = '画像を作成中です。もう一度押してください。'; return; }
+    const file = new File([blob], fname, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); } catch (e) { if (e && e.name !== 'AbortError') q('shMsg').textContent = '共有できませんでした。「画像を保存」を使ってください。'; }
+    } else { save(); q('shMsg').textContent = 'この端末では共有メニューを開けないため、画像を保存しました。'; }
+  };
+  q('shClose').onclick = () => ov.remove();
+  ov.addEventListener('click', ev => { if (ev.target === ov) ov.remove(); });
+  draw();
+}
+document.addEventListener('click', ev => { if (ev.target.closest('#shareBtn')) openShare(); });
 document.getElementById('tutBtn').addEventListener('click',tstart);
 render();
 if(!tdone())setTimeout(tstart,400);
