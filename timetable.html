@@ -59,6 +59,7 @@ const PC={'1':['8:45','9:50'],'2':['10:00','11:05'],'3':['11:15','12:20'],L:['12
 const TM={'1':[525,600],'2':[610,685],'3':[695,770],'4':[840,915],'*4':[800,915],'5':[925,1000],'*5':[925,1040],'6':[1010,1085],'7':[1095,1170],'*7':[1095,1210]};
 const ST=['履修済','履修中','予定','検討中'],$=i=>document.getElementById(i);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const rmTxt=(r,t)=>r&&!t.noroom?'<br><span style="font-size:10px;opacity:.9">'+esc(r)+'</span>':'';
 const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const CM=Object.fromEntries(COURSES.map(c=>[c.course_no,c]));
@@ -115,17 +116,17 @@ const search=q=>{const t=tt(),u=q.trim().toUpperCase();return u?COURSES.filter(c
 function resRows(l){const t=tt();return l.map(x=>{const c=x.course||x,e=enr.find(e=>e.course_no===c.course_no),on=t.pl.some(p=>p.cno===c.course_no),o=x.sec!=null?offs(c,t)[x.sec]:null;return`<div class="row"><span>${esc(c.title_ja)}<br><span class="mu">${c.course_no} / ${fmt(cr(c.credit))}単位${e?' / '+e.status:''}${o?' / '+esc((o.instructor||'')+' '+(o.schedule||'')):''}${syl(c,o)?' / '+syl(c,o):''}</span></span><span><button data-sst="予定" data-c2="${c.course_no}">予定</button> <button data-sst="検討中" data-c2="${c.course_no}">検討中</button> ${on?'<span class="mu">配置済</span>':`<button data-add="${c.course_no}" data-sec="${x.sec??''}" data-ap="${x.alt??''}">時間割へ追加</button>`}</span></div>`}).join('')||'<span class="mu">該当する科目がありません。</span>'}
 function listHtml(t){const l=enr.filter(e=>(e.status==='予定'||e.status==='検討中')&&CM[e.course_no]&&off(CM[e.course_no],t));
   return'<h2>この学期に開講される予定・検討中の授業</h2><button id="rec">一括仮配置</button>'+(l.map(e=>{const c=CM[e.course_no],on=t.pl.some(p=>p.cno===e.course_no);return`<div class="row"><span>${esc(c.title_ja)}<br><span class="mu">${e.status} / ${fmt(cr(c.credit))}単位${syl(c)?' / '+syl(c):''}</span></span>${on?'<span class="mu">配置済</span>':`<button data-add="${e.course_no}">時間割へ追加</button>`}</div>`}).join('')||'<div class="mu" style="margin-top:8px">該当する授業はありません。</div>')}
-function render(){const t=tt();t.em=t.em||{};const cy=new Date().getFullYear(),PX=t.term==='春'&&t.cw?PC:PT,SPX=t.term==='春'&&t.cw?SC:SN,dys=t.nosat?DAYS.slice(0,5):DAYS,gr=t.grade||1;
+function render(){const t=tt();t.em=t.em||{};t.rm=t.rm||{};t.rc=t.rc||{};const cy=new Date().getFullYear(),PX=t.term==='春'&&t.cw?PC:PT,SPX=t.term==='春'&&t.cw?SC:SN,dys=t.nosat?DAYS.slice(0,5):DAYS,gr=t.grade||1;
   $('tabs').innerHTML=tts.map((x,i)=>`<button class="tab${i===cur?' on':''}" data-t="${i}">${esc(x.name)}</button>`).join('')+'<button id="add" title="時間割を追加">＋</button>';
   $('bar').innerHTML=`<input id="nm" value="${esc(t.name)}" style="width:130px"><select id="yr">${Array.from({length:13},(_,i)=>cy-6+i).map(y=>`<option${y===t.year?' selected':''}>${y}</option>`).join('')}</select>年度<select id="gr">${[1,2,3,4].map(g=>`<option${g===gr?' selected':''}>${g}</option>`).join('')}</select>年次<select id="tm">${['春','秋','冬'].map(x=>`<option${x===t.term?' selected':''}>${x}</option>`).join('')}</select>学期
-   <select id="st" title="この時間割のELAストリーム(単位上限に使います)"><option value="">ELA:履修台帳に従う</option>${[1,2,3,4].map(n=>`<option value="stream${n}"${t.stream==='stream'+n?' selected':''}>Stream ${n}</option>`).join('')}<option value="none"${t.stream==='none'?' selected':''}>ELAなし</option></select><button id="ela" class="${mode==='ela'?'on':''}">ELA枠を入力</button>${t.term==='春'?`<button id="cw" class="${t.cw?'on':''}">C-week時間</button>`:''}<button id="sat">${t.nosat?'土曜を表示':'土曜を非表示'}</button><button id="shareBtn" type="button">画像で共有</button><button id="del" title="この時間割を削除">🗑</button>`;
+   <select id="st" title="この時間割のELAストリーム(単位上限に使います)"><option value="">ELA:履修台帳に従う</option>${[1,2,3,4].map(n=>`<option value="stream${n}"${t.stream==='stream'+n?' selected':''}>Stream ${n}</option>`).join('')}<option value="none"${t.stream==='none'?' selected':''}>ELAなし</option></select><button id="ela" class="${mode==='ela'?'on':''}">ELA枠を入力</button>${t.term==='春'?`<button id="cw" class="${t.cw?'on':''}">C-week時間</button>`:''}<button id="rmBtn" title="コマに教室を表示するかどうか">教室: ${t.noroom?'非表示':'表示'}</button><button id="sat">${t.nosat?'土曜を表示':'土曜を非表示'}</button><button id="shareBtn" type="button">画像で共有</button><button id="del" title="この時間割を削除">🗑</button>`;
   const o=occ(t);let h='<tr><th></th>'+dys.map(d=>`<th>${DL[DAYS.indexOf(d)]}</th>`).join('')+'</tr>';
   ROWS.forEach(r=>{const tx=`${r==='L'?'昼休み':r+'限'}<br>${PX[r][0]}-${PX[r][1]}`+(SPX[r]?`<br><span style="font-size:10px;opacity:.8">スーパー ${SPX[r][0]}-${SPX[r][1]}</span>`:'');
     if(r==='L'){h+=`<tr class="lun"><td class="h">${tx}</td><td class="x" colspan="${dys.length}" style="height:24px"></td></tr>`;return}
     h+=`<tr><td class="h">${tx}</td>`;
     dys.forEach(d=>{const k=r+'/'+d,me=o.filter(x=>x.s.some(a=>a.p.replace('*','')===r&&a.d===d));
       if(me.length>1){h+='<td class="dup">'+me.map(x=>`<span data-c="${x.c}" style="display:block;cursor:pointer">${esc(CM[x.c].title_ja.slice(0,10))}</span>`).join('')+'</td>';return}
-      if(me.length){const x=me[0];if(x.c==='ELA'){const m=t.em[k];h+=`<td class="ela e" data-k="${k}">ELA${m?'<br>'+esc(CM[m]?CM[m].title_ja.split('：').pop().slice(0,10):m):''}</td>`}else{const p=t.pl.find(p=>p.cno===x.c),sup=x.s.some(a=>a.p[0]==='*'&&a.p.slice(1)===r&&a.d===d);h+=`<td class="c ${p.st==='tent'?'p':p.st==='履修済'?'':'s'}" data-c="${x.c}" style="background:${colr(CM[x.c].prefix)};color:${tc(colr(CM[x.c].prefix))}" title="${esc(CM[x.c].title_ja)}">${sup?'[S]':''}${esc(CM[x.c].title_ja.slice(0,14))}</td>`}return}
+      if(me.length){const x=me[0];if(x.c==='ELA'){const m=t.em[k];h+=`<td class="ela e" data-k="${k}">ELA${m?'<br>'+esc(CM[m]?CM[m].title_ja.split('：').pop().slice(0,10):m):''}${rmTxt(t.rm[k],t)}</td>`}else{const p=t.pl.find(p=>p.cno===x.c),sup=x.s.some(a=>a.p[0]==='*'&&a.p.slice(1)===r&&a.d===d);h+=`<td class="c ${p.st==='tent'?'p':p.st==='履修済'?'':'s'}" data-c="${x.c}" style="background:${colr(CM[x.c].prefix)};color:${tc(colr(CM[x.c].prefix))}" title="${esc(CM[x.c].title_ja)}">${sup?'[S]':''}${esc(CM[x.c].title_ja.slice(0,14))}${rmTxt(t.rc[x.c],t)}</td>`}return}
       h+=o.some(x=>x.s.some(a=>ov(a,{p:r,d})))?'<td class="blk">重複</td>':`<td class="e" data-k="${k}"></td>`});h+='</tr>'});
   $('grid').innerHTML=h;
   $('leg').innerHTML=[...new Set(t.pl.map(p=>CM[p.cno]&&CM[p.cno].prefix).filter(Boolean))].sort().map(x=>`<label>${x} <input type="color" data-pc="${x}" value="${colr(x)}"></label>`).join('')||'<span class="mu">授業を置くと、ここにメジャーごとの色の変更欄が出ます。</span>';
@@ -135,8 +136,8 @@ function render(){const t=tt();t.em=t.em||{};const cy=new Date().getFullYear(),P
   $('side').innerHTML='<h2>授業を探す</h2><input id="q" placeholder="科目名・科目番号(この学期の開講)" style="width:100%" value="'+esc(Q)+'"><div id="sd" style="margin:8px 0"></div><div id="qr">'+(Q?resRows(search(Q)):'')+'</div><div class="mu" style="margin-top:6px">空いている時限をクリックして、その時限の授業を探すこともできます。</div>';
   if(menu&&menu[0]!=='#'&&!(CM[menu]&&off(CM[menu],t)))menu=null;
   if(menu&&menu[0]==='#'){const k=menu.slice(1),es=ELAN;
-    $('sd').innerHTML=`<h2>このELA枠(${k})の授業</h2>`+es.map(c=>`<div class="row"><span>${esc(c)}</span><button data-em="${esc(c)}">選ぶ</button></div>`).join('')+'<div class="row"><span class="mu">未設定に戻す</span><button data-em="">解除</button></div>'}
-  else if(menu){const p=t.pl.find(p=>p.cno===menu),c=CM[menu];$('sd').innerHTML=p?`<h2>${esc(c.title_ja)}</h2><div class="mu">${c.course_no} / ${p.st==='tent'?'仮配置':'現在: '+p.st}${syl(c,off(c,t,p.sec))?' / '+syl(c,off(c,t,p.sec)):''}</div>${c.desc?`<p class="mu" style="margin:6px 0">${esc(c.desc)}</p>`:''}${offs(c,t).length>1?`<div class="mu" style="margin-top:8px">開講クラス(時限・担当)</div><div style="max-height:240px;overflow:auto">${offs(c,t).map((o,i)=>slotsOf(o,0).length?`<button data-ms="${i}" class="${i===(p.sec||0)?'on':''}" style="margin:2px 4px 2px 0">${esc((o.schedule||'').replace(/\s+/g,' '))} ${esc(o.instructor||'')}</button>`:'').join('')}</div>`:''}<div class="bar" style="margin:8px 0 0">${ST.map(s=>`<button data-s="${s}">${s}</button>`).join('')}<button data-s="rm">時間割から外す</button>${nAlt(off(c,t,p.sec))>1?`${parseSched(off(c,t,p.sec).schedule).alts.map((a,i)=>`<button data-alt="${i}">${a.map(x=>x.p+'/'+x.d).join(',')}</button>`).join('')}`:''}</div>${nAlt(off(c,t,p.sec))>1?`<div class="mu" style="margin-top:6px">選択中の時限: ${slotsOf(off(c,t,p.sec),p.alt).map(a=>a.p+'/'+a.d).join(',')}</div>`:''}`:''}
+    $('sd').innerHTML=`<h2>このELA枠(${k})の授業</h2>`+es.map(c=>`<div class="row"><span>${esc(c)}</span><button data-em="${esc(c)}">選ぶ</button></div>`).join('')+'<div class="row"><span class="mu">未設定に戻す</span><button data-em="">解除</button></div>'+`<div style="margin-top:8px">教室(任意・手入力)<input id="rmIn" data-kind="ela" value="${esc(t.rm[k]||'')}" placeholder="例: 2-301" style="width:100%"></div>`}
+  else if(menu){const p=t.pl.find(p=>p.cno===menu),c=CM[menu];$('sd').innerHTML=p?`<h2>${esc(c.title_ja)}</h2><div class="mu">${c.course_no} / ${p.st==='tent'?'仮配置':'現在: '+p.st}${syl(c,off(c,t,p.sec))?' / '+syl(c,off(c,t,p.sec)):''}</div>${c.desc?`<p class="mu" style="margin:6px 0">${esc(c.desc)}</p>`:''}${offs(c,t).length>1?`<div class="mu" style="margin-top:8px">開講クラス(時限・担当)</div><div style="max-height:240px;overflow:auto">${offs(c,t).map((o,i)=>slotsOf(o,0).length?`<button data-ms="${i}" class="${i===(p.sec||0)?'on':''}" style="margin:2px 4px 2px 0">${esc((o.schedule||'').replace(/\s+/g,' '))} ${esc(o.instructor||'')}</button>`:'').join('')}</div>`:''}<div style="margin:8px 0">教室(任意・手入力)<input id="rmIn" data-kind="c" value="${esc(t.rc[menu]||'')}" placeholder="例: 2-301" style="width:100%"></div><div class="bar" style="margin:8px 0 0">${ST.map(s=>`<button data-s="${s}">${s}</button>`).join('')}<button data-s="rm">時間割から外す</button>${nAlt(off(c,t,p.sec))>1?`${parseSched(off(c,t,p.sec).schedule).alts.map((a,i)=>`<button data-alt="${i}">${a.map(x=>x.p+'/'+x.d).join(',')}</button>`).join('')}`:''}</div>${nAlt(off(c,t,p.sec))>1?`<div class="mu" style="margin-top:6px">選択中の時限: ${slotsOf(off(c,t,p.sec),p.alt).map(a=>a.p+'/'+a.d).join(',')}</div>`:''}`:''}
   else if(look)lookup(look);
 
   $('list').innerHTML=listHtml(t);save()}
@@ -149,6 +150,7 @@ document.addEventListener('click',ev=>{const t=tt(),g=q=>ev.target.closest(q);le
   else if(g('#add')){tts.push(mk(tts.length+1));cur=tts.length-1;menu=look=null;mode=''}
   else if(g('#ela'))mode=mode==='ela'?'':'ela';
   else if(g('#cw'))t.cw=!t.cw;
+  else if(g('#rmBtn'))t.noroom=!t.noroom;
   else if(g('#sat')){if(!t.nosat&&occ(t).some(x=>x.s.some(a=>a.d==='SA'))){alert('土曜に配置済みの科目があるため、非表示にできません。');return}t.nosat=!t.nosat}
   else if(g('#rec')){recommend();return}
   else if(g('#del')){if(tts.length<2||!confirm('この時間割を削除しますか?'))return;tts.splice(cur,1);cur=0;menu=look=null}
@@ -162,6 +164,7 @@ document.addEventListener('click',ev=>{const t=tt(),g=q=>ev.target.closest(q);le
   else if(b=g('td[data-k]')){const k=b.dataset.k;if(mode==='ela'){const i=t.ela.indexOf(k);if(i>=0)t.ela.splice(i,1);else if(!conf(t,[sp(k)]).length)t.ela.push(k)}else if(b.classList.contains('ela')){menu='#'+k;look=null}else{look=k;menu=null}}
   else return;render()});
 document.addEventListener('change',ev=>{const t=tt(),i=ev.target.id;
+  if(i==='rmIn'){const v=ev.target.value.trim();if(ev.target.dataset.kind==='ela')t.rm[menu.slice(1)]=v;else t.rc[menu]=v;render();return}
   if(ev.target.dataset.pc){COL[ev.target.dataset.pc]=ev.target.value;sv('icu_tt_colors_v1',COL);render();return}
   if(i==='nm')t.name=ev.target.value||t.name;if(i==='yr')t.year=+ev.target.value;if(i==='gr')t.grade=+ev.target.value;if(i==='tm')t.term=ev.target.value;if(i==='st')t.stream=ev.target.value;
   if(i==='cap')t.cap=Math.max(0,parseInt(ev.target.value)||0);if(i==='c3')t.cap3=ev.target.checked;
@@ -172,7 +175,7 @@ document.addEventListener('input',ev=>{if(ev.target.id==='q'){Q=ev.target.value;
 const TUTK='icu_tt_tutorial_done_v1';
 const TSTEPS=[
  {sel:'#top',t:'時間割の追加・削除と、年度・年次・学期',b:'上のタブで、複数の時間割を自由に切り替えられます。「＋」で新しい時間割を追加、「🗑」で今の時間割を削除できます。タブの下の欄で、時間割ごとに名前・年度・年次・学期・ELAのストリームを設定します(年次とストリームに合わせて、取得できる単位数の上限が変わります)。春学期は「C-week時間」への切り替え、土曜が不要なら「土曜を非表示」もここで行えます。「画像で共有」で、時間割を画像にして友達に送れます。'},
- {sel:'#ela',t:'ELAの入力と科目名',b:'「ELA枠を入力」を押してオンにし、ELAの授業がある時限のコマをクリックすると、濃い茶色で塗られます(もう一度クリックで解除)。終わったら、もう一度押してオフに戻します。塗ったコマをクリックすると、ARW・RCA・ASなど、どのELA授業かの名前を選べます。'},
+ {sel:'#ela',t:'ELAの入力と科目名',b:'「ELA枠を入力」を押してオンにし、ELAの授業がある時限のコマをクリックすると、濃い茶色で塗られます(もう一度クリックで解除)。終わったら、もう一度押してオフに戻します。塗ったコマをクリックすると、ARW・RCA・ASなど、どのELA授業かの名前と、教室(任意)を入力できます。'},
  {sel:'#cred',t:'取得可能単位数の表示と変更',b:'この学期に置いた授業の単位数と、取得できる上限が表示されます。上限を超えると警告が出ます。上限は「上限を自分で設定」の欄に整数を入れ、必要なら「+1/3」にチェックして変更できます(空欄なら、年次とストリームに合わせた標準の上限です)。'},
  {sel:'#side',t:'授業を探して追加する',b:'科目名や科目番号で検索できます。時間割の空いているコマをクリックすると、その時限に開講される授業が出ます。結果の「予定」「検討中」で履修リストに登録し、「時間割へ追加」でコマに置きます。置いた授業をクリックすると、概要・シラバスが検索バーの下に出て、状態や開講クラスも変えられます。時限が重なるときは、どちらを残すか確認が出ます。'},
  {sel:'#list',t:'履修予定の授業の追加と一括仮配置',b:'履修台帳で「予定」「検討中」にした授業のうち、この学期に開講されるものが並びます。「時間割へ追加」で1つずつ置くか、「一括仮配置」で、時限が重ならないものをまとめて仮に置けます。仮配置(破線)の授業はクリックして、履修済・履修中・予定・検討中のどれにするか決めて確定します。'},
@@ -242,8 +245,8 @@ function drawTimetable(t, o) {
       if (me.length > 1) { bg = '#9C4530'; fg = '#fff'; g.font = '500 21px ' + FONT; lines = me.map(q => wrapJa(g, CM[q.c].title_ja, colW - 20, 1)[0]); }
       else if (me.length) {
         const q = me[0];
-        if (q.c === 'ELA') { bg = '#4A2F1E'; fg = '#F3E9DC'; const nm = t.em && t.em[r + '/' + d]; g.font = '500 22px ' + FONT; lines = ['ELA'].concat(nm ? wrapJa(g, CM[nm] ? CM[nm].title_ja.split('：').pop() : nm, colW - 20, 1) : []); }
-        else { bg = colr(CM[q.c].prefix); fg = tc(bg); g.font = '500 22px ' + FONT; lines = wrapJa(g, CM[q.c].title_ja, colW - 20, 3); }
+        if (q.c === 'ELA') { bg = '#4A2F1E'; fg = '#F3E9DC'; const nm = t.em && t.em[r + '/' + d]; g.font = '500 22px ' + FONT; lines = ['ELA'].concat(t.rm&&t.rm[r+'/'+d]&&!t.noroom?[t.rm[r+'/'+d]]:[]).concat(nm ? wrapJa(g, CM[nm] ? CM[nm].title_ja.split('：').pop() : nm, colW - 20, 1) : []); }
+        else { bg = colr(CM[q.c].prefix); fg = tc(bg); g.font = '500 22px ' + FONT; lines = wrapJa(g, CM[q.c].title_ja, colW - 20, 3); if (t.rc && t.rc[q.c] && !t.noroom) lines.push(t.rc[q.c]); }
       }
       g.fillStyle = bg; g.fillRect(x, y, colW, h);
       g.strokeStyle = '#C9BFA9'; g.lineWidth = 2; g.strokeRect(x, y, colW, h);

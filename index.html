@@ -393,6 +393,50 @@
     table.courses tbody tr.detail-row td { display: block; border: 0; }
   }
 
+  /* ---- スマホ: 「授業を検索」と「履修リスト」をタブで切り替える ---- */
+  .main-tabs { display: none; }
+  @media (max-width: 700px) {
+    .main-tabs { display: flex; margin: 0 0 14px; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; position: sticky; top: 0; z-index: 5; background: var(--bg); }
+    .main-tabs button { flex: 1; min-height: 44px; font-family: var(--sans); font-size: 14px; background: var(--bg); color: var(--ink-muted); border: 0; cursor: pointer; }
+    .main-tabs button + button { border-left: 1px solid var(--border); }
+    .main-tabs button.on { background: var(--gold); color: var(--bg); }
+    .main[data-tab="search"] .enrolled { display: none; }
+    .main[data-tab="list"] .browser { display: none; }
+    .enrolled { margin-top: 0; }
+  }
+
+  /* ---- 並べ替えの上下ボタン ---- */
+  .sort-arrows { display: inline-flex; flex-direction: column; vertical-align: middle; margin-left: 4px; line-height: 0.8; }
+  .sort-arrow { background: none; border: 0; padding: 1px 3px; font-size: 9px; color: var(--ink-muted); cursor: pointer; }
+  .sort-arrow.on { color: var(--gold); }
+  .sortbar { display: none; align-items: center; gap: 6px 14px; flex-wrap: wrap; margin-bottom: 10px; font-size: 13px; color: var(--ink-muted); }
+  .sortbar .grp { display: inline-flex; align-items: center; gap: 4px; }
+  @media (max-width: 700px) {
+    .sortbar { display: flex; }
+    .sortbar .sort-arrow { min-width: 36px; min-height: 36px; font-size: 13px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg); }
+    .sortbar .sort-arrow.on { background: var(--gold); color: var(--bg); border-color: var(--gold); }
+  }
+  /* ---- パソコン: 履修リストを右のサイドバーに出す ---- */
+  @media (min-width: 1200px) {
+    .wrap { max-width: 1480px; }
+    .layout { grid-template-columns: 300px minmax(0, 1fr) 340px; }
+    .main { display: contents; }
+    .ledger { grid-column: 1; grid-row: 1; }
+    .browser { grid-column: 2; grid-row: 1; }
+    .enrolled { grid-column: 3; grid-row: 1; margin-top: 0; position: sticky; top: 12px; align-self: start; max-height: calc(100vh - 24px); overflow-y: auto; padding: 14px; background: var(--panel); border: 1px solid var(--border); }
+    .enrolled .erow { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+    .enrolled .erow.head { display: none; }
+    .enrolled .erow > .cno { order: 1; }
+    .enrolled .erow > .rm { order: 1; margin-left: auto; }
+    .enrolled .erow > .e-title { order: 2; flex: 1 1 100%; }
+    .enrolled .erow > .e-cat { order: 3; flex: 1 1 120px; width: auto; }
+    .enrolled .erow > .e-status-cell { order: 4; }
+    .enrolled .erow > .e-credit { order: 5; }
+  }
+
+  .tag-spill { display: block; font-size: 11.5px; color: var(--ink-muted); }
+  .tag-over { display: block; font-size: 11.5px; color: var(--rust); }
+
   /* ---- Enrollment panel ---- */
   .enrolled {
     margin-top: 40px;
@@ -570,7 +614,8 @@
       <div class="cap-rules" id="capRules"></div>
     </div>
 
-    <div class="main">
+    <div class="main" data-tab="search">
+      <div class="main-tabs" id="mainTabs" role="tablist"><button type="button" role="tab" data-tab="search" class="on">授業を検索</button><button type="button" role="tab" data-tab="list">履修リスト <span id="listCount"></span></button></div>
       <div class="browser">
         <h2>科目を探す</h2>
         <div class="add-mode">
@@ -579,6 +624,7 @@
           <span class="add-mode-hint">「追加」を押すと、この状態ですぐ履修リストに入ります</span>
         </div>
         <div id="shortNote" class="short-note" style="display:none"></div>
+        <div class="sortbar">並べ替え <span class="grp">単位 <button type="button" class="sort-arrow" data-sort="credit" data-dir="1">▲</button><button type="button" class="sort-arrow" data-sort="credit" data-dir="-1">▼</button></span><span class="grp">開講学期 <button type="button" class="sort-arrow" data-sort="term" data-dir="1">▲</button><button type="button" class="sort-arrow" data-sort="term" data-dir="-1">▼</button></span></div>
         <div class="controls">
           <input type="search" id="searchBox" placeholder="科目番号または科目タイトルで検索(例: ISC, 微積分)">
           <select id="catFilter">
@@ -593,8 +639,8 @@
             <tr>
               <th style="width:90px">科目番号</th>
               <th>科目タイトル</th>
-              <th style="width:60px" class="sortable" data-sort="credit">単位<span class="sort-ind"></span></th>
-              <th style="width:110px" class="sortable" data-sort="term">開講学期<span class="sort-ind"></span></th>
+              <th style="width:60px">単位<span class="sort-arrows"><button type="button" class="sort-arrow" data-sort="credit" data-dir="1" title="単位の少ない順">▲</button><button type="button" class="sort-arrow" data-sort="credit" data-dir="-1" title="単位の多い順">▼</button></span></th>
+              <th style="width:110px">開講学期<span class="sort-arrows"><button type="button" class="sort-arrow" data-sort="term" data-dir="1" title="春→秋→冬の順">▲</button><button type="button" class="sort-arrow" data-sort="term" data-dir="-1" title="冬→秋→春の順">▼</button></span></th>
               <th style="width:90px">区分</th>
               <th style="width:96px"></th>
             </tr>
@@ -724,6 +770,18 @@ function saveAddStatus(v) {
 let addStatus = loadAddStatus();
 let sortKey = '', sortDir = 1; // 科目一覧の並べ替え(単位・開講学期)
 const TERM_ORDER = { '春': 0, '秋': 1, '冬': 2 };
+let mainTab = 'search';   // スマホ: 'search'(授業を検索) / 'list'(履修リスト)
+function setMainTab(t) {
+  mainTab = t;
+  const m = document.querySelector('.main');
+  if (m) m.dataset.tab = t;
+  document.querySelectorAll('#mainTabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+}
+function updateListCount() {
+  const n = enrollments.filter(e => e.status !== '取りやめ').length + transfers.length;
+  const el = document.getElementById('listCount');
+  if (el) el.textContent = n ? '(' + n + ')' : '';
+}
 let expandedEnr = null; // 履修リストで詳細を開いている科目
 let expandedCno = null; // 科目タイトルをクリックして詳細を開いている科目(1件のみ)
 
@@ -847,7 +905,7 @@ function fmtTerms(offerings) {
 // 科目の卒業要件区分は、選択中の履修形態・メジャー(・第二メジャー/マイナー)によって変わる。
 function courseCategory(c) {
   if (c.fixed_category) return c.fixed_category;
-  if (c.level == null) return null;
+  if (c.level == null) return catById['elective'].name;
   if (belongsTo(c, currentMajor)) {
     return c.level === 1 ? catById['foundation'].name : catById['major'].name;
   }
@@ -974,10 +1032,6 @@ function renderCategoryFilter() {
     opt.textContent = c.name;
     sel.appendChild(opt);
   });
-  const opt2 = document.createElement('option');
-  opt2.value = '__unclassified__';
-  opt2.textContent = '未分類';
-  sel.appendChild(opt2);
   if ([...sel.options].some(o => o.value === current)) sel.value = current;
 }
 
@@ -1103,6 +1157,17 @@ function ledgerModel(withPlanned) {
   return { amt, rec, spills, spill, total, elOwn };
 }
 
+// 必要単位を超えて、選択科目に振り分けられる科目(取得済み・認定単位を先に数える)
+function spilledCourses(c) {
+  const req = requiredFor(c), cap = spillCap(c.id), f = x => { const i = STATUS_ORDER.indexOf(x.status); return i < 0 ? 99 : i; };
+  const list = transfers.filter(t => t.category_id === c.id).map(t => ({ title: t.name, credit: t.credit, status: '認定済み' }))
+    .concat(enrollments.filter(e => e.category_id === c.id && e.status !== '取りやめ').sort((a, b) => f(a) - f(b))
+      .map(e => ({ title: e.course_no + ' ' + e.title_ja, credit: e.credit, status: e.status })));
+  let cum = 0; const out = [];
+  list.forEach(e => { const before = cum; cum += parseCredit(e.credit); if (before >= req && before < req + cap) out.push(e); });
+  return out;
+}
+
 // 区分ごとの詳細(必要単位を超えた分の扱い・その区分に算入されている科目)
 function catDetailHtml(c, req, A) {
   const cap = spillCap(c.id);
@@ -1137,7 +1202,8 @@ function catDetailHtml(c, req, A) {
   if (c.id === 'elective') {
     const from = ACTIVE_CATEGORIES.filter(x => A.spills[x.id] > 0)
       .map(x => `${x.name} ${fmtNum(A.spills[x.id])}単位`).join('、');
-    extra = `<div>他の区分からの算入: ${from || 'なし'}</div>`;
+    const rows = ACTIVE_CATEGORIES.filter(x => A.spills[x.id] > 0).map(x => spilledCourses(x).map(e => `<div class="crow"><span class="t">${escHtml(e.title)}</span><span class="tag">${displayCredit(e.credit)}単位 / ${e.status}<br>${x.name}の超過分</span></div>`).join('')).join('');
+    extra = `<div>他の区分からの算入: ${from || 'なし'}(必要単位を超えた分は、自動で選択科目に振り分けられます)</div>${rows ? '<div class="detail-h">振り分けられた科目</div>' + rows : ''}`;
   }
   return `<div class="cat-detail"><div>必要単位 ${req}単位${cap > 0 && Number.isFinite(cap) ? `(上限 ${req + cap}単位まで認められます)` : ''}</div><div>${note}</div>${extra}${breakdown}<div class="detail-h">この区分に登録されている科目(取りやめを除く)</div>${items || '<div>登録されている科目はありません。</div>'}</div>`;
 }
@@ -1220,6 +1286,7 @@ function shortageSearch(id) {
   document.getElementById('prefixFilter').value = '';
   document.getElementById('searchBox').value = '';
   renderCourseTable();
+  setMainTab('search');
   const br = document.querySelector('.browser');
   if (br && br.scrollIntoView) br.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -1247,8 +1314,7 @@ function renderCourseTable() {
     if (q && !(c.course_no.toUpperCase().includes(q) || c.title_ja.includes(q))) return false;
     if (prefixFilter && c.prefix !== prefixFilter) return false;
     const cat = courseCategory(c);
-    if (catFilter === '__unclassified__' && cat) return false;
-    if (catFilter && catFilter !== '__unclassified__' && cat !== catFilter) return false;
+    if (catFilter && cat !== catFilter) return false;
     return true;
   });
 
@@ -1258,10 +1324,8 @@ function renderCourseTable() {
       : Math.min(...c.offerings.map(o => TERM_ORDER[o.term] ?? 9));
     filtered = filtered.slice().sort((a, b) => (key(a) - key(b)) * sortDir || a.course_no.localeCompare(b.course_no));
   }
-  document.querySelectorAll('th.sortable').forEach(th => {
-    th.querySelector('.sort-ind').textContent = th.dataset.sort === sortKey ? (sortDir > 0 ? ' ▲' : ' ▼') : '';
-  });
 
+  document.querySelectorAll('.sort-arrow').forEach(b => b.classList.toggle('on', b.dataset.sort === sortKey && Number(b.dataset.dir) === sortDir));
   const LIMIT = 80;
   const shown = filtered.slice(0, LIMIT);
   shown.forEach(c => {
@@ -1271,7 +1335,7 @@ function renderCourseTable() {
       <td><button type="button" class="title-btn" data-cno="${c.course_no}">${c.title_ja}</button></td>
       <td>${displayCredit(c.credit)}</td>
       <td>${fmtTerms(c.offerings)}</td>
-      <td><span class="cat-tag">${courseCategory(c) || '未分類'}${(isCoListed(c.course_no, currentMajor) || (currentMode !== 'single' && isCoListed(c.course_no, currentSecondary))) ? '・Co-List' : ''}</span></td>
+      <td><span class="cat-tag">${courseCategory(c) || catById['elective'].name}${(isCoListed(c.course_no, currentMajor) || (currentMode !== 'single' && isCoListed(c.course_no, currentSecondary))) ? '・Co-List' : ''}</span></td>
       <td><button class="add-btn" data-cno="${c.course_no}">＋ ${addStatus}</button></td>
     `;
     body.appendChild(tr);
@@ -1374,12 +1438,30 @@ function openTransferForm(editId) {
 }
 document.getElementById('addTransferBtn').addEventListener('click', () => openTransferForm(null));
 document.getElementById('addCourseBtn').addEventListener('click', () => {
+  setMainTab('search');
   const br = document.querySelector('.browser');
   if (br && br.scrollIntoView) br.scrollIntoView({ behavior: 'smooth', block: 'start' });
   document.getElementById('searchBox').focus();
 });
 
+// 必要単位を超えた分の割り当て(認定単位 → 履修済 → 履修中…の順に数える)。履修リストの表示用
+function allocationMap() {
+  const out = {}, f = x => { const i = STATUS_ORDER.indexOf(x.status); return i < 0 ? 99 : i; };
+  ACTIVE_CATEGORIES.forEach(c => {
+    if (hiddenCat(c.id)) return;
+    const req = requiredFor(c), limit = req + spillCap(c.id);
+    let cum = transfers.filter(t => t.category_id === c.id).reduce((sum, t) => sum + parseCredit(t.credit), 0);
+    enrollments.filter(e => e.category_id === c.id && e.status !== '取りやめ').sort((a, b) => f(a) - f(b)).forEach(e => {
+      const before = cum; cum += parseCredit(e.credit);
+      out[e.id] = before >= limit ? 'over' : (before >= req && c.id !== 'elective' ? 'spill' : 'in');
+    });
+  });
+  return out;
+}
+
 function renderEnrolled() {
+  updateListCount();
+  const alloc = allocationMap();
   renderTransfers();
   const area = document.getElementById('enrolledArea');
   if (enrollments.length === 0) {
@@ -1396,7 +1478,7 @@ function renderEnrolled() {
       : `<select class="e-status e-status-cell">${STATUS_ALL.map(st => `<option ${st === e.status ? 'selected' : ''}>${st}</option>`).join('')}</select>`;
     html += `<div class="erow" data-id="${e.id}">
       <span class="cno">${e.course_no}</span>
-      <span class="e-title"><button type="button" class="title-btn" data-ecno="${e.course_no}">${e.title_ja}</button></span>
+      <span class="e-title"><button type="button" class="title-btn" data-ecno="${e.course_no}">${e.title_ja}</button>${alloc[e.id] === 'spill' ? '<span class="tag-spill">超過分 → 選択科目に算入</span>' : (alloc[e.id] === 'over' ? '<span class="tag-over">上限超過(算入されない)</span>' : '')}</span>
       <select class="e-cat">
         ${ACTIVE_CATEGORIES.filter(c => !hiddenCat(c.id) || c.id === e.category_id).map(c => `<option value="${c.id}" ${c.id===e.category_id?'selected':''}>${c.name}</option>`).join('')}
       </select>
@@ -1516,6 +1598,14 @@ document.querySelector('table.courses thead').addEventListener('click', ev => {
   else { sortKey = ''; sortDir = 1; }
   renderCourseTable();
 });
+// 上下のボタン: 同じボタンをもう一度押すと、並べ替えなしに戻る
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('.sort-arrow');
+  if (!b) return;
+  const k = b.dataset.sort, d = Number(b.dataset.dir);
+  if (sortKey === k && sortDir === d) { sortKey = ''; sortDir = 1; } else { sortKey = k; sortDir = d; }
+  renderCourseTable();
+});
 document.getElementById('searchBox').addEventListener('input', renderCourseTable);
 document.getElementById('catFilter').addEventListener('change', renderCourseTable);
 document.getElementById('prefixFilter').addEventListener('change', renderCourseTable);
@@ -1548,7 +1638,7 @@ const TUTORIAL_STEPS = [
   {
     selector: '#addStatusSeg',
     title: '科目をかんたんに追加',
-    body: '上の「追加時の状態」(履修済・履修中など)を選んでおき、科目一覧の「＋」ボタンを押すだけで、その状態のまま履修リストに追加されます。'
+    body: '上の「追加時の状態」(履修済・履修中など)を選んでおき、科目一覧の「＋」ボタンを押すだけで、その状態のまま履修リストに追加されます。スマホでは、上の「授業を検索」「履修リスト」のタブで画面を切り替えます。'
   },
   {
     selector: '.controls',
@@ -1582,6 +1672,11 @@ function positionTutorial() {
   const step = TUTORIAL_STEPS[tutorialStep];
   const { box, card } = tutorialEls;
   const target = document.querySelector(step.selector);
+  // スマホでは、対象がある側のタブに切り替える(隠れていると囲めないため)
+  if (target && window.matchMedia && window.matchMedia('(max-width: 700px)').matches) {
+    const want = target.closest('.browser') ? 'search' : (target.closest('.enrolled') ? 'list' : null);
+    if (want && mainTab !== want) setMainTab(want);
+  }
   // 画面の高さの半分以上ある背の高い要素(左側の充足状況など)は、スクロールせずに画面内の部分だけを囲む
   let r = target ? target.getBoundingClientRect() : { left: 20, top: 20, width: 0, height: 0, bottom: 20 };
   const tall = !!target && r.height > window.innerHeight * 0.55;
@@ -1660,6 +1755,10 @@ function endTutorial() {
 }
 
 document.getElementById('tutorialBtn').addEventListener('click', startTutorial);
+document.getElementById('mainTabs').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-tab]');
+  if (b) setMainTab(b.dataset.tab);
+});
 
 renderAddStatusSeg();
 renderModeSelect();
