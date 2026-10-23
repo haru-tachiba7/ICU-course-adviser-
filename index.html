@@ -434,6 +434,15 @@
     .enrolled .erow > .e-credit { order: 5; }
   }
 
+  .enr-sort { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; font-size: 12.5px; color: var(--ink-muted); }
+  .esb-pair { display: inline-flex; flex-direction: column; vertical-align: middle; margin-left: 4px; line-height: 1; }
+  .esb { font-size: 9px; padding: 0 3px; background: none; border: 0; color: var(--ink-muted); cursor: pointer; opacity: .45; }
+  .esb.on { opacity: 1; color: var(--gold); }
+  @media (max-width: 700px) {
+    .enr-sort .esb-pair { flex-direction: row; margin-left: 6px; }
+    .enr-sort .esb { font-size: 14px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 3px; margin-right: 4px; min-height: 36px; opacity: .7; }
+    .enr-sort .esb.on { opacity: 1; }
+  }
   .tag-spill { display: block; font-size: 11.5px; color: var(--ink-muted); }
   .tag-over { display: block; font-size: 11.5px; color: var(--rust); }
 
@@ -653,6 +662,7 @@
       <div class="enrolled">
         <h2>履修リスト(あなたのデータ)</h2>
         <div class="enr-actions"><button type="button" class="add-btn" id="addCourseBtn">科目を追加</button><button type="button" class="add-btn" id="addTransferBtn">認定単位を追加</button></div>
+        <div class="enr-sort" id="enrSort">並べ替え:<span>状態<span class="esb-pair"><button type="button" class="esb" data-ek="status" data-dir="1" title="昇順">▲</button><button type="button" class="esb" data-ek="status" data-dir="-1" title="降順">▼</button></span></span><span>メジャー<span class="esb-pair"><button type="button" class="esb" data-ek="major" data-dir="1" title="昇順">▲</button><button type="button" class="esb" data-ek="major" data-dir="-1" title="降順">▼</button></span></span></div>
         <div id="transferArea"></div>
         <div id="enrolledArea"></div>
       </div>
@@ -781,6 +791,18 @@ function updateListCount() {
   const n = enrollments.filter(e => e.status !== '取りやめ').length + transfers.length;
   const el = document.getElementById('listCount');
   if (el) el.textContent = n ? '(' + n + ')' : '';
+}
+// 履修リストの並べ替え(状態・メジャー)。key='' のときは、新しく追加した順
+let enrSort = (() => { try { return JSON.parse(localStorage.getItem('icu_ui_enr_sort_v1')) || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
+function sortedEnrollments() {
+  const list = [...enrollments].reverse();
+  if (!enrSort.key) return list;
+  const st = e => { const i = STATUS_ALL.indexOf(e.status); return i < 0 ? 99 : i; };   // 履修済 → 履修中 → 予定 → 検討中 …
+  const mj = e => e.course_no.slice(0, 3);                                               // 科目番号の頭3文字(メジャー)
+  return list.sort((a, b) => {
+    const c = enrSort.key === 'status' ? st(a) - st(b) : mj(a).localeCompare(mj(b));
+    return (c * enrSort.dir) || a.course_no.localeCompare(b.course_no);
+  });
 }
 let expandedEnr = null; // 履修リストで詳細を開いている科目
 let expandedCno = null; // 科目タイトルをクリックして詳細を開いている科目(1件のみ)
@@ -1436,6 +1458,15 @@ function openTransferForm(editId) {
     saveTransfers(); renderTransfers(); renderLedger(); close();
   };
 }
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('.esb');
+  if (!b) return;
+  const dir = Number(b.dataset.dir);
+  if (enrSort.key === b.dataset.ek && enrSort.dir === dir) enrSort = { key: '', dir: 1 };   // もう一度押すと解除
+  else enrSort = { key: b.dataset.ek, dir };
+  try { localStorage.setItem('icu_ui_enr_sort_v1', JSON.stringify(enrSort)); } catch (e) {}
+  renderEnrolled();
+});
 document.getElementById('addTransferBtn').addEventListener('click', () => openTransferForm(null));
 document.getElementById('addCourseBtn').addEventListener('click', () => {
   setMainTab('search');
@@ -1461,6 +1492,7 @@ function allocationMap() {
 
 function renderEnrolled() {
   updateListCount();
+  document.querySelectorAll('.esb').forEach(b => b.classList.toggle('on', b.dataset.ek === enrSort.key && Number(b.dataset.dir) === enrSort.dir));
   const alloc = allocationMap();
   renderTransfers();
   const area = document.getElementById('enrolledArea');
@@ -1472,7 +1504,7 @@ function renderEnrolled() {
     <span>科目番号</span><span>タイトル</span><span>区分</span><span>状態(クリックで変更)</span><span>単位</span><span></span>
   </div>`;
   // 新しく追加したものが上に来るように、追加順の逆で表示する
-  [...enrollments].reverse().forEach(e => {
+  sortedEnrollments().forEach(e => {
     const statusCell = STATUS_MAIN.includes(e.status)
       ? `<div class="chips e-status-cell">${STATUS_MAIN.map(st => `<button class="chip${st === e.status ? ' on' : ''}" data-status="${st}">${st}</button>`).join('')}</div>`
       : `<select class="e-status e-status-cell">${STATUS_ALL.map(st => `<option ${st === e.status ? 'selected' : ''}>${st}</option>`).join('')}</select>`;
