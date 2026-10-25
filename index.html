@@ -443,6 +443,9 @@
     .enr-sort .esb { font-size: 14px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 3px; margin-right: 4px; min-height: 36px; opacity: .7; }
     .enr-sort .esb.on { opacity: 1; }
   }
+  .lang-tag { border: 1px solid var(--border); border-radius: 2px; padding: 0 5px; font-size: 11px; }
+  .past-h { margin: 12px 0 4px; color: var(--ink); font-weight: 500; }
+  .lang-diff { margin-left: 8px; color: var(--rust); font-size: 11.5px; font-weight: 400; }
   .tag-spill { display: block; font-size: 11.5px; color: var(--ink-muted); }
   .tag-over { display: block; font-size: 11.5px; color: var(--rust); }
 
@@ -677,6 +680,7 @@
 <script src="cap_rules.js"></script>
 <script src="majors.js"></script>
 <script src="colist.js"></script>
+<script src="past.js"></script>
 <script>
 const STORAGE_KEY = 'icu_planner_enrollments_v1';
 const OVERRIDE_KEY = 'icu_planner_category_overrides_v1';
@@ -1356,7 +1360,7 @@ function renderCourseTable() {
       <td class="cno">${c.course_no}</td>
       <td><button type="button" class="title-btn" data-cno="${c.course_no}">${c.title_ja}</button></td>
       <td>${displayCredit(c.credit)}</td>
-      <td>${fmtTerms(c.offerings)}</td>
+      <td>${fmtTerms(c.offerings)} ${langTagHtml(c)}</td>
       <td><span class="cat-tag">${courseCategory(c) || catById['elective'].name}${(isCoListed(c.course_no, currentMajor) || (currentMode !== 'single' && isCoListed(c.course_no, currentSecondary))) ? '・Co-List' : ''}</span></td>
       <td><button class="add-btn" data-cno="${c.course_no}">＋ ${addStatus}</button></td>
     `;
@@ -1373,6 +1377,31 @@ function renderCourseTable() {
 }
 
 // 科目タイトルをクリックしたときに開く詳細行(概要 + 開講情報 + 公式シラバスへのリンク)
+// 開講言語(J/E)の表示と、過去の年度の開講(past.js)
+const langLabel = l => ({ J: '日本語', E: '英語' }[l] || l || '');
+function pastHtml(c) {
+  const past = (typeof PAST !== 'undefined' && PAST[c.course_no]) || [];
+  if (!past.length) return '';
+  const langs = new Set(c.offerings.concat(past).map(o => o.language).filter(Boolean));
+  const rows = past.map(o => `
+    <div>
+      <span>${o.year}年度 ${o.term}学期</span>
+      <span class="lang-tag">${langLabel(o.language)}</span>
+      <span>${o.instructor || '(担当未定)'}</span>
+      <span>${o.schedule || ''}</span>
+      ${o.syllabus_url ? `<a href="${o.syllabus_url}" target="_blank" rel="noopener">シラバス ↗</a>` : ''}
+    </div>`).join('');
+  return `<div class="past-h">過去の開講${langs.size > 1 ? '<span class="lang-diff">開講言語が年度によって異なります</span>' : ''}</div><div class="offering-list">${rows}</div>`;
+}
+// 科目の開講言語の表示(日本語/英語)。過去の年度で言語が違う場合は ※ を付ける
+function langTagHtml(c) {
+  const cur = [...new Set(c.offerings.map(o => o.language).filter(Boolean))];
+  if (!cur.length) return '';
+  const past = (typeof PAST !== 'undefined' && PAST[c.course_no]) || [];
+  const extra = [...new Set(past.map(o => o.language).filter(l => l && !cur.includes(l)))];
+  const title = extra.length ? '過去に開講言語が異なる年度があります' : (cur.length > 1 ? '学期によって開講言語が異なります' : '開講言語');
+  return `<span class="lang-tag" title="${title}">${cur.map(langLabel).join('/')}${extra.length ? ' ※' : ''}</span>`;
+}
 function detailInner(c) {
   const descHtml = c.desc
     ? `<p class="detail-desc">${c.desc}</p>`
@@ -1380,11 +1409,12 @@ function detailInner(c) {
   const offeringsHtml = c.offerings.map(o => `
     <div>
       <span>${o.year}年度 ${o.term}学期</span>
+      <span class="lang-tag">${langLabel(o.language)}</span>
       <span>${o.instructor || '(担当未定)'}</span>
       <span>${o.schedule || ''}</span>
       ${o.syllabus_url ? `<a href="${o.syllabus_url}" target="_blank" rel="noopener">公式シラバスを見る ↗</a>` : ''}
     </div>`).join('');
-  return `${descHtml}<div class="offering-list">${offeringsHtml}</div>`;
+  return `${descHtml}<div class="offering-list">${offeringsHtml}</div>${pastHtml(c)}`;
 }
 function buildDetailRow(c) {
   const tr = document.createElement('tr');
@@ -1510,7 +1540,7 @@ function renderEnrolled() {
       : `<select class="e-status e-status-cell">${STATUS_ALL.map(st => `<option ${st === e.status ? 'selected' : ''}>${st}</option>`).join('')}</select>`;
     html += `<div class="erow" data-id="${e.id}">
       <span class="cno">${e.course_no}</span>
-      <span class="e-title"><button type="button" class="title-btn" data-ecno="${e.course_no}">${e.title_ja}</button>${alloc[e.id] === 'spill' ? '<span class="tag-spill">超過分 → 選択科目に算入</span>' : (alloc[e.id] === 'over' ? '<span class="tag-over">上限超過(算入されない)</span>' : '')}</span>
+      <span class="e-title"><button type="button" class="title-btn" data-ecno="${e.course_no}">${e.title_ja}</button> ${courseByNo[e.course_no] ? langTagHtml(courseByNo[e.course_no]) : ''}${alloc[e.id] === 'spill' ? '<span class="tag-spill">超過分 → 選択科目に算入</span>' : (alloc[e.id] === 'over' ? '<span class="tag-over">上限超過(算入されない)</span>' : '')}</span>
       <select class="e-cat">
         ${ACTIVE_CATEGORIES.filter(c => !hiddenCat(c.id) || c.id === e.category_id).map(c => `<option value="${c.id}" ${c.id===e.category_id?'selected':''}>${c.name}</option>`).join('')}
       </select>

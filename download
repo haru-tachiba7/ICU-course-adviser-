@@ -1,0 +1,11 @@
+/wrangler.jsonc
+/worker.js
+/.assetsignore
+/.gitignore
+.git
+node_modules
+/README.md
+/CODEMAP.md
+/HANDOFF.md
+/scripts/
+.wrangler
