@@ -446,6 +446,9 @@
   .lang-tag { border: 1px solid var(--border); border-radius: 2px; padding: 0 5px; font-size: 11px; }
   .past-h { margin: 12px 0 4px; color: var(--ink); font-weight: 500; }
   .lang-diff { margin-left: 8px; color: var(--rust); font-size: 11.5px; font-weight: 400; }
+  .slotbar { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin-bottom: 10px; font-size: 13px; color: var(--ink-muted); }
+  .slotbar select { font-family: var(--sans); font-size: 13.5px; color: var(--ink); background: var(--panel); border: 1px solid var(--border); border-radius: 3px; padding: 6px 10px; }
+  @media (max-width: 700px) { .slotbar select { font-size: 16px; } }
   .tag-spill { display: block; font-size: 11.5px; color: var(--ink-muted); }
   .tag-over { display: block; font-size: 11.5px; color: var(--rust); }
 
@@ -646,6 +649,16 @@
             <option value="">すべてのメジャー(科目群)</option>
           </select>
         </div>
+        <div class="slotbar">開講コマ
+          <select id="slotFilter">
+            <option value="">すべて</option>
+            <option value="0">月・水・金の3限</option>
+            <option value="1">火曜3限・木曜2,3限</option>
+            <option value="2">5・6・7限(曜日を問わない)</option>
+            <option value="3">その他</option>
+          </select>
+          <span>並べ替え <button type="button" class="sort-arrow" data-sort="slot" data-dir="1" title="上の分類の順(月水金3限 → 火木 → 5〜7限 → その他)">▲</button><button type="button" class="sort-arrow" data-sort="slot" data-dir="-1" title="その逆の順">▼</button></span>
+        </div>
         <table class="courses">
           <thead>
             <tr>
@@ -807,6 +820,24 @@ function sortedEnrollments() {
     const c = enrSort.key === 'status' ? st(a) - st(b) : mj(a).localeCompare(mj(b));
     return (c * enrSort.dir) || a.course_no.localeCompare(b.course_no);
   });
+}
+// 開講コマの分類(科目一覧の絞り込み・並べ替え)。0〜2に当てはまらない科目・時限未定の科目は 3(その他)
+const SLOT_GROUPS = [
+  (p, d) => p === '3' && ['M', 'W', 'F'].includes(d),                              // 月・水・金の3限
+  (p, d) => (d === 'TU' && p === '3') || (d === 'TH' && (p === '2' || p === '3')),   // 火曜3限・木曜2,3限
+  (p) => ['5', '6', '7'].includes(p)                                                 // 5・6・7限(曜日を問わない)
+];
+const slotCache = {};
+function slotGroups(c) {
+  if (slotCache[c.course_no]) return slotCache[c.course_no];
+  const hit = new Set();
+  c.offerings.forEach(o => {
+    String(o.schedule || '').replace(/[()<>]/g, ',').split(/,|\s+or\s+/).forEach(tok => {
+      const m = /^\s*\*?(\d)\/([A-Z]+)\s*$/.exec(tok);   // 例: 3/TU, *5/M
+      if (m) SLOT_GROUPS.forEach((f, i) => { if (f(m[1], m[2])) hit.add(i); });
+    });
+  });
+  return (slotCache[c.course_no] = hit.size ? [...hit].sort() : [3]);
 }
 let expandedEnr = null; // 履修リストで詳細を開いている科目
 let expandedCno = null; // 科目タイトルをクリックして詳細を開いている科目(1件のみ)
@@ -1310,6 +1341,7 @@ function shortageSearch(id) {
   shortCat = id;
   document.getElementById('catFilter').value = c.name;
   document.getElementById('prefixFilter').value = '';
+  document.getElementById('slotFilter').value = '';
   document.getElementById('searchBox').value = '';
   renderCourseTable();
   setMainTab('search');
@@ -1341,12 +1373,15 @@ function renderCourseTable() {
     if (prefixFilter && c.prefix !== prefixFilter) return false;
     const cat = courseCategory(c);
     if (catFilter && cat !== catFilter) return false;
+    const sf = document.getElementById('slotFilter').value;
+    if (sf !== '' && !slotGroups(c).includes(Number(sf))) return false;
     return true;
   });
 
   if (sortKey) {
     const key = c => sortKey === 'credit'
       ? parseCredit(c.credit)
+      : sortKey === 'slot' ? slotGroups(c)[0]
       : Math.min(...c.offerings.map(o => TERM_ORDER[o.term] ?? 9));
     filtered = filtered.slice().sort((a, b) => (key(a) - key(b)) * sortDir || a.course_no.localeCompare(b.course_no));
   }
@@ -1670,6 +1705,7 @@ document.addEventListener('click', ev => {
 });
 document.getElementById('searchBox').addEventListener('input', renderCourseTable);
 document.getElementById('catFilter').addEventListener('change', renderCourseTable);
+document.getElementById('slotFilter').addEventListener('change', renderCourseTable);
 document.getElementById('prefixFilter').addEventListener('change', renderCourseTable);
 
 // ---- チュートリアル(初回案内) ----
