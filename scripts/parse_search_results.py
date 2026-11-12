@@ -79,6 +79,8 @@ def parse_html(path: Path):
         if len(tds) < 8:
             continue
         year, term = tds[0].get_text(strip=True), tds[1].get_text(strip=True)
+        if not re.fullmatch(r"\d{4}", year):   # ページ送りの行(1 2 3 … >>)などは、科目ではないので読み飛ばす
+            continue
         a = tds[2].find("a")
         cno = a.get_text(strip=True) if a else tds[2].get_text(strip=True)
         href = a["href"] if a else None

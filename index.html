@@ -671,6 +671,7 @@
             <option value="0">すべて</option>
           </select>
           <span id="countNote"></span>
+          <label style="margin-left:6px"><input type="checkbox" id="showNoOff"> 今年度開講のない科目も表示</label>
         </div>
         <table class="courses">
           <thead>
@@ -818,7 +819,7 @@ const SORT_LABELS = { credit: '単位', term: '開講学期', slot: '開講コ�
 function sortValue(c, key) {
   if (key === 'credit') return parseCredit(c.credit);
   if (key === 'slot') return slotGroups(c)[0];
-  return Math.min(...c.offerings.map(o => TERM_ORDER[o.term] ?? 9));
+  return Math.min(9, ...c.offerings.map(o => TERM_ORDER[o.term] ?? 9));
 }
 function renderSortSummary() {
   const el = document.getElementById('sortSummary');
@@ -876,6 +877,9 @@ let expandedCno = null; // 科目タイトルをクリックして詳細を開�
 
 const majorByPrefix = Object.fromEntries((typeof MAJORS !== 'undefined' ? MAJORS : []).map(m => [m.prefix, m]));
 const courseByNo = Object.fromEntries(COURSES.map(c => [c.course_no, c]));
+// data.js の年度(開講情報がある年度)。開講のない科目は not_offered: true で登録されている
+const DATA_YEAR = (COURSES.find(c => c.offerings.length) || { offerings: [{ year: '' }] }).offerings[0].year;
+const NO_OFF_TAG = '<span class="lang-tag" style="color:var(--rust);border-color:var(--rust)">' + DATA_YEAR + '年度は開講なし</span>';
 // Co-Listing: COLIST[メジャー] = そのメジャーの一覧に掲載されている、他メジャー開講の科目(colist.js)
 const COLIST_SET = {};
 if (typeof COLIST !== 'undefined') Object.entries(COLIST).forEach(([m, l]) => { COLIST_SET[m] = new Set(l); });
@@ -1407,6 +1411,7 @@ function renderCourseTable() {
     if (catFilter && cat !== catFilter) return false;
     const sf = document.getElementById('slotFilter').value;
     if (sf !== '' && !slotGroups(c).includes(Number(sf))) return false;
+    if (c.not_offered && !document.getElementById('showNoOff').checked) return false;
     return true;
   });
 
@@ -1431,7 +1436,7 @@ function renderCourseTable() {
       <td class="cno">${c.course_no}</td>
       <td><button type="button" class="title-btn" data-cno="${c.course_no}">${c.title_ja}</button></td>
       <td>${displayCredit(c.credit)}</td>
-      <td>${fmtTerms(c.offerings)} ${langTagHtml(c)}</td>
+      <td>${c.not_offered ? NO_OFF_TAG : fmtTerms(c.offerings) + ' ' + langTagHtml(c)}</td>
       <td><span class="cat-tag">${courseCategory(c) || catById['elective'].name}${(isCoListed(c.course_no, currentMajor) || (currentMode !== 'single' && isCoListed(c.course_no, currentSecondary))) ? '・Co-List' : ''}</span></td>
       <td><button class="add-btn" data-cno="${c.course_no}">＋ ${addStatus}</button></td>
     `;
@@ -1451,17 +1456,19 @@ function renderCourseTable() {
 const langLabel = l => ({ J: '日本語', E: '英語' }[l] || l || '');
 function pastHtml(c) {
   const past = (typeof PAST !== 'undefined' && PAST[c.course_no]) || [];
-  if (!past.length) return '';
+  const none = ((typeof NOT_OFFERED !== 'undefined' && NOT_OFFERED[c.course_no]) || []).filter(y => y !== DATA_YEAR);   // 開講のなかった年度
+  if (!past.length && !none.length) return '';
   const langs = new Set(c.offerings.concat(past).map(o => o.language).filter(Boolean));
-  const rows = past.map(o => `
+  const items = past.map(o => ({ y: Number(o.year), t: o.term, html: `
     <div>
       <span>${o.year}年度 ${o.term}学期</span>
       <span class="lang-tag">${langLabel(o.language)}</span>
       <span>${o.instructor || '(担当未定)'}</span>
       <span>${o.schedule || ''}</span>
       ${o.syllabus_url ? `<a href="${o.syllabus_url}" target="_blank" rel="noopener">シラバス ↗</a>` : ''}
-    </div>`).join('');
-  return `<div class="past-h">過去の開講${langs.size > 1 ? '<span class="lang-diff">開講言語が年度によって異なります</span>' : ''}</div><div class="offering-list">${rows}</div>`;
+    </div>` })).concat(none.map(y => ({ y: Number(y), t: '', html: `<div><span>${y}年度</span><span class="lang-tag">開講なし</span></div>` })))
+    .sort((a, b) => (b.y - a.y) || String(a.t).localeCompare(b.t));
+  return `<div class="past-h">過去の開講${langs.size > 1 ? '<span class="lang-diff">開講言語が年度によって異なります</span>' : ''}</div><div class="offering-list">${items.map(x => x.html).join('')}</div>`;
 }
 // 科目の開講言語の表示(日本語/英語)。過去の年度で言語が違う場合は ※ を付ける
 function langTagHtml(c) {
@@ -1484,7 +1491,8 @@ function detailInner(c) {
       <span>${o.schedule || ''}</span>
       ${o.syllabus_url ? `<a href="${o.syllabus_url}" target="_blank" rel="noopener">公式シラバスを見る ↗</a>` : ''}
     </div>`).join('');
-  return `${descHtml}<div class="offering-list">${offeringsHtml}</div>${pastHtml(c)}`;
+  const noNow = c.not_offered ? `<div class="past-h" style="color:var(--rust)">${DATA_YEAR}年度は開講されません</div>` : '';
+  return `${descHtml}${noNow}<div class="offering-list">${offeringsHtml}</div>${pastHtml(c)}`;
 }
 function buildDetailRow(c) {
   const tr = document.createElement('tr');
@@ -1610,7 +1618,7 @@ function renderEnrolled() {
       : `<select class="e-status e-status-cell">${STATUS_ALL.map(st => `<option ${st === e.status ? 'selected' : ''}>${st}</option>`).join('')}</select>`;
     html += `<div class="erow" data-id="${e.id}">
       <span class="cno">${e.course_no}</span>
-      <span class="e-title"><button type="button" class="title-btn" data-ecno="${e.course_no}">${e.title_ja}</button> ${courseByNo[e.course_no] ? langTagHtml(courseByNo[e.course_no]) : ''}${alloc[e.id] === 'spill' ? '<span class="tag-spill">超過分 → 選択科目に算入</span>' : (alloc[e.id] === 'over' ? '<span class="tag-over">上限超過(算入されない)</span>' : '')}</span>
+      <span class="e-title"><button type="button" class="title-btn" data-ecno="${e.course_no}">${e.title_ja}</button> ${courseByNo[e.course_no] ? (courseByNo[e.course_no].not_offered ? NO_OFF_TAG : langTagHtml(courseByNo[e.course_no])) : ''}${alloc[e.id] === 'spill' ? '<span class="tag-spill">超過分 → 選択科目に算入</span>' : (alloc[e.id] === 'over' ? '<span class="tag-over">上限超過(算入されない)</span>' : '')}</span>
       <select class="e-cat">
         ${ACTIVE_CATEGORIES.filter(c => !hiddenCat(c.id) || c.id === e.category_id).map(c => `<option value="${c.id}" ${c.id===e.category_id?'selected':''}>${c.name}</option>`).join('')}
       </select>
@@ -1736,6 +1744,7 @@ function setListLimit(n) {
   try { localStorage.setItem('icu_ui_list_limit_v1', String(n)); } catch (e) {}
   renderCourseTable();
 }
+document.getElementById('showNoOff').addEventListener('change', renderCourseTable);
 document.getElementById('limitSel').addEventListener('change', ev => setListLimit(Number(ev.target.value)));
 document.addEventListener('click', ev => {
   if (!ev.target.closest('#moreBtn')) return;
